@@ -1,0 +1,35 @@
+plugins {
+	id 'java'
+}
+
+version = '0.0.0'
+group = "io.tlf.monkeynetty"
+ext {
+	//Dependency Versions
+	//jmeVersion = 'master-SNAPSHOT'
+	//jmeGroup = "com.github.jMonkeyEngine.jmonkeyengine";
+	jmeVersion = "3.3.0-stable"
+	jmeGroup = "org.jmonkeyengine"
+    nettyioVersion = "4.1.51.Final"
+}
+
+repositories {
+    mavenCentral()
+    jcenter()
+}
+
+dependencies {
+	//Jme3
+    implementation jmeGroup + ':jme3-core:' + jmeVersion
+    implementation jmeGroup + ':jme3-desktop:' + jmeVersion
+    implementation jmeGroup + ':jme3-lwjgl3:' + jmeVersion
+    //Netty.IO
+    compile group: 'io.netty', name: 'netty-all', version: nettyioVersion
+    compile group: 'io.netty', name: 'netty-transport', version: nettyioVersion
+}
+
+
+
+
+
+

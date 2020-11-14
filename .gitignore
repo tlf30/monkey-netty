@@ -1,0 +1,16 @@
+.idea/
+.shelf/
+/.gradle/
+/.gradle/*
+/.nb-gradle/
+/.nb-gradle/*
+/build/*
+/build/**/
+.nb-*
+.class
+nbproject/private/
+bin/
+libs/
+build/
+.gradle
+.gradletasknamecache

@@ -15,6 +15,9 @@ import io.netty.handler.codec.serialization.ClassResolvers;
 import io.netty.handler.codec.serialization.DatagramPacketObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.tlf.monkeynetty.ConnectionListener;
 import io.tlf.monkeynetty.NetworkClient;
 import io.tlf.monkeynetty.MessageListener;
@@ -36,6 +39,8 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     protected String service;
     protected int port;
     protected String server;
+    protected boolean ssl;
+    protected boolean sslSelfSigned;
     protected volatile boolean reconnect = false;
 
     //Netty
@@ -47,15 +52,26 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     private Bootstrap udpClientBootstrap = new Bootstrap();
     private ChannelFuture udpChannelFuture;
     private DatagramChannel udpChannel;
+    private SslContext sslContext;
 
     private final HashSet<MessageListener> handlers = new HashSet<>();
     private final Set<ConnectionListener> listeners = Collections.synchronizedSet(new HashSet<>());
     private final Object handlerLock = new Object();
 
     public NettyClient(String service, int port, String server) {
+        this(service, false, false, port, server);
+    }
+
+    public NettyClient(String service, boolean ssl, int port, String server) {
+        this(service, ssl, false, port, server);
+    }
+
+    public NettyClient(String service, boolean ssl, boolean sslSelfSigned, int port, String server) {
         this.service = service;
         this.port = port;
         this.server = server;
+        this.ssl = ssl;
+        this.sslSelfSigned = sslSelfSigned;
     }
 
     @Override
@@ -80,6 +96,19 @@ public class NettyClient extends BaseAppState implements NetworkClient {
 
     private void setupTcp() {
         LOGGER.fine("Setting up tcp");
+        if (ssl) {
+            try {
+                if (sslSelfSigned) {
+                    sslContext = SslContextBuilder.forClient()
+                            .trustManager(InsecureTrustManagerFactory.INSTANCE).build();
+                } else {
+                    sslContext = SslContextBuilder.forClient().build();
+                }
+            } catch (Exception ex) {
+                LOGGER.log(Level.WARNING, "Failed to load ssl, failing back to no ssl", ex);
+                ssl = false;
+            }
+        }
         //Setup TCP
         tcpGroup = new NioEventLoopGroup();
         tcpClientBootstrap = new Bootstrap();
@@ -91,8 +120,14 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                 tcpChannel = socketChannel;
                 SocketChannelConfig cfg = tcpChannel.config();
                 cfg.setConnectTimeoutMillis(10000);
-                //Setup pipeline
+
                 ChannelPipeline p = socketChannel.pipeline();
+                //Setup ssl
+                if (ssl) {
+                    p.addLast(sslContext.newHandler(socketChannel.alloc(), server, port));
+                }
+
+                //Setup pipeline
                 p.addLast(
                         new ObjectEncoder(),
                         new ObjectDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
@@ -290,6 +325,11 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     @Override
     public String getService() {
         return service;
+    }
+
+    @Override
+    public boolean isSsl() {
+        return ssl;
     }
 
     @Override

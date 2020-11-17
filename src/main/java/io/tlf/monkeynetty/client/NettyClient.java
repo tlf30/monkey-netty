@@ -63,7 +63,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     }
 
     public NettyClient(String service, boolean ssl, int port, String server) {
-        this(service, ssl, false, port, server);
+        this(service, ssl, true, port, server);
     }
 
     public NettyClient(String service, boolean ssl, boolean sslSelfSigned, int port, String server) {

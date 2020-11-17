@@ -17,6 +17,7 @@ import io.tlf.monkeynetty.*;
 import io.tlf.monkeynetty.msg.NetworkMessage;
 import io.tlf.monkeynetty.msg.UdpConHashMessage;
 
+import java.io.File;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.logging.Level;
@@ -49,6 +50,8 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     private final String service;
     private final int port;
     private boolean ssl;
+    private File cert;
+    private File key;
 
     public NettyServer(String service, int port) {
         this(service, false, port);
@@ -58,6 +61,14 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         this.service = service;
         this.port = port;
         this.ssl = ssl;
+    }
+
+    public NettyServer(String service, boolean ssl, File cert, File key, int port) {
+        this.service = service;
+        this.port = port;
+        this.ssl = ssl;
+        this.cert = cert;
+        this.key = key;
     }
 
     @Override
@@ -196,8 +207,13 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         //Setup ssl
         if (ssl) {
             try {
-                SelfSignedCertificate ssc = new SelfSignedCertificate();
-                sslContext = SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey()).build();
+                if (cert == null || key == null) {
+                    LOGGER.log(Level.WARNING, "No SSL cert or key provided, using self signed certificate");
+                    SelfSignedCertificate ssc = new SelfSignedCertificate();
+                    cert = ssc.certificate();
+                    key = ssc.privateKey();
+                }
+                sslContext = SslContextBuilder.forServer(cert, key).build();
             } catch (Exception ex) {
                 LOGGER.log(Level.WARNING, "Failed to load ssl, failing back to no ssl", ex);
                 ssl = false;

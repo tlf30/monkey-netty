@@ -81,6 +81,10 @@ public class NettyConnection implements NetworkClient {
         return server.getService();
     }
 
+    public boolean isSsl() {
+        return server.isSsl();
+    }
+
     @Override
     public NetworkProtocol[] getProtocol() {
         return server.getProtocol();

@@ -12,7 +12,7 @@ public class JmeServer extends SimpleApplication {
 
     @Override
     public void simpleInitApp() {
-        NettyServer server = new NettyServer("test", 10000);
+        NettyServer server = new NettyServer("test", true, 10000);
         stateManager.attach(server);
         server.registerListener(new ConnectionListener() {
             @Override

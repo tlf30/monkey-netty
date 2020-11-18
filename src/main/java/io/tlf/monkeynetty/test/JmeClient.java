@@ -14,7 +14,7 @@ public class JmeClient extends SimpleApplication {
 
     @Override
     public void simpleInitApp() {
-        NettyClient client = new NettyClient("test", 10000, "localhost");
+        NettyClient client = new NettyClient("test", true, 10000, "localhost");
         stateManager.attach(client);
         client.registerListener(new MessageListener() {
             @Override

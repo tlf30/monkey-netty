@@ -10,10 +10,14 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.serialization.ClassResolvers;
 import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.tlf.monkeynetty.*;
 import io.tlf.monkeynetty.msg.NetworkMessage;
 import io.tlf.monkeynetty.msg.UdpConHashMessage;
 
+import java.io.File;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.logging.Level;
@@ -41,13 +45,34 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     private EventLoopGroup udpMsgGroup;
     private ServerBootstrap udpServer;
     private ChannelFuture udpFuture;
+    private SslContext sslContext;
 
     private final String service;
     private final int port;
+    private boolean ssl;
+    private boolean selfGenCert;
+    private File cert;
+    private File key;
 
     public NettyServer(String service, int port) {
+        this(service, false, port);
+    }
+
+    public NettyServer(String service, boolean ssl, int port) {
+        this(service, ssl, true, null, null, port);
+    }
+
+    public NettyServer(String service, boolean ssl, File cert, File key, int port) {
+        this(service, ssl, false, cert, key, port);
+    }
+
+    private NettyServer(String service, boolean ssl, boolean selfGenCert, File cert, File key, int port) {
         this.service = service;
         this.port = port;
+        this.ssl = ssl;
+        this.cert = cert;
+        this.key = key;
+        this.selfGenCert = selfGenCert;
     }
 
     @Override
@@ -173,11 +198,32 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     }
 
     @Override
+    public boolean isSsl() {
+        return ssl;
+    }
+
+    @Override
     public NetworkProtocol[] getProtocol() {
         return new NetworkProtocol[]{NetworkProtocol.UDP, NetworkProtocol.TCP};
     }
 
     private void setupTcp() {
+        //Setup ssl
+        if (ssl) {
+            try {
+                if (selfGenCert) {
+                    LOGGER.log(Level.WARNING, "No SSL cert or key provided, using self signed certificate");
+                    SelfSignedCertificate ssc = new SelfSignedCertificate();
+                    cert = ssc.certificate();
+                    key = ssc.privateKey();
+                }
+                sslContext = SslContextBuilder.forServer(cert, key).build();
+            } catch (Exception ex) {
+                LOGGER.log(Level.WARNING, "Failed to load ssl, failing back to no ssl", ex);
+                ssl = false;
+            }
+        }
+        //Setup tcp socket
         try {
             tcpConGroup = new NioEventLoopGroup();
             tcpMsgGroup = new NioEventLoopGroup();
@@ -216,6 +262,11 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                     LOGGER.log(Level.WARNING, "Exception thrown running connection listeners", ex);
                                 }
                             });
+
+                            //Setup ssl
+                            if (ssl) {
+                                p.addLast(sslContext.newHandler(ch.alloc()));
+                            }
 
                             //Setup pipeline
                             p.addLast(

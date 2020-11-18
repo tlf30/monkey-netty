@@ -15,6 +15,8 @@ public interface NetworkClient {
 
     void disconnect();
 
+    boolean isSsl();
+
     String getAddress();
 
     int getPort();

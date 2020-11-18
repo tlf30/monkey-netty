@@ -11,6 +11,8 @@ public interface NetworkServer {
 
     int getPort();
 
+    boolean isSsl();
+
     String getService();
 
     NetworkProtocol[] getProtocol();

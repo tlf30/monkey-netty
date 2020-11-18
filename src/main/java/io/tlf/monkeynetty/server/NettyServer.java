@@ -50,6 +50,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     private final String service;
     private final int port;
     private boolean ssl;
+    private boolean selfGenCert;
     private File cert;
     private File key;
 
@@ -58,15 +59,20 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     }
 
     public NettyServer(String service, boolean ssl, int port) {
-        this(service, ssl, null, null, port);
+        this(service, ssl, true,null, null, port);
     }
 
     public NettyServer(String service, boolean ssl, File cert, File key, int port) {
+        this(service, ssl, false, cert, key, port);
+    }
+
+    public NettyServer(String service, boolean ssl, boolean selfGenCert, File cert, File key, int port) {
         this.service = service;
         this.port = port;
         this.ssl = ssl;
         this.cert = cert;
         this.key = key;
+        this.selfGenCert = selfGenCert;
     }
 
     @Override
@@ -205,7 +211,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         //Setup ssl
         if (ssl) {
             try {
-                if (cert == null || key == null) {
+                if (selfGenCert) {
                     LOGGER.log(Level.WARNING, "No SSL cert or key provided, using self signed certificate");
                     SelfSignedCertificate ssc = new SelfSignedCertificate();
                     cert = ssc.certificate();

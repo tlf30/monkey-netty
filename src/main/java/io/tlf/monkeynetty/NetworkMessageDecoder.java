@@ -13,6 +13,8 @@ public class NetworkMessageDecoder extends LengthFieldBasedFrameDecoder {
 
     private final ClassResolver classResolver;
 
+    private NetworkRegistrar registrar = new NetworkRegistrar();
+
     /**
      * Creates a new decoder whose maximum object size is {@code 1048576}
      * bytes.  If the size of the received object is greater than
@@ -41,13 +43,13 @@ public class NetworkMessageDecoder extends LengthFieldBasedFrameDecoder {
     }
 
     @Override
-    protected Object decode(ChannelHandlerContext ctx, ByteBuf in) throws Exception {
+    public Object decode(ChannelHandlerContext ctx, ByteBuf in) throws Exception {
         ByteBuf frame = (ByteBuf) super.decode(ctx, in);
         if (frame == null) {
             return null;
         }
 
-        ObjectInputStream ois = new NetworkObjectInputStream(new ByteBufInputStream(frame, true), classResolver);
+        ObjectInputStream ois = new NetworkObjectInputStream(new ByteBufInputStream(frame, true), classResolver, registrar);
         try {
             return ois.readObject();
         } finally {

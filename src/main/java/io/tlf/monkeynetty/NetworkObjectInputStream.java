@@ -7,10 +7,12 @@ import java.io.*;
 public class NetworkObjectInputStream extends ObjectInputStream {
 
     private final ClassResolver classResolver;
+    private final NetworkRegistrar registrar;
 
-    NetworkObjectInputStream(InputStream in, ClassResolver classResolver) throws IOException {
+    NetworkObjectInputStream(InputStream in, ClassResolver classResolver, NetworkRegistrar registrar) throws IOException {
         super(in);
         this.classResolver = classResolver;
+        this.registrar = registrar;
     }
 
     @Override
@@ -33,12 +35,18 @@ public class NetworkObjectInputStream extends ObjectInputStream {
                 return super.readClassDescriptor();
             case NetworkObjectOutputStream.TYPE_THIN_DESCRIPTOR:
                 int id = readInt();
-                String className = NetworkRegistrar.getUidRegistry().get(id);
+                String className = registrar.getUidRegistry().get(id);
                 if (className == null) {
-                    throw new NetworkMessageException("Unregistered network message received for decoding");
+                    throw new NetworkMessageException("Unregistered type received for decoding: " + id);
                 }
                 Class<?> clazz = classResolver.resolve(className);
                 return ObjectStreamClass.lookupAny(clazz);
+            case NetworkObjectOutputStream.TYPE_NEW_DESCRIPTOR:
+                String newName = readUTF();
+                int newId = readInt();
+                registrar.register(newName, newId);
+                Class<?> newClazz = classResolver.resolve(newName);
+                return ObjectStreamClass.lookupAny(newClazz);
             default:
                 throw new StreamCorruptedException("Unexpected class descriptor type: " + type);
         }

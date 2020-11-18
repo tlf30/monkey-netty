@@ -11,6 +11,8 @@ import java.io.Serializable;
 public class NetworkMessageEncoder extends MessageToByteEncoder<Serializable> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
 
+    private NetworkRegistrar registrar = new NetworkRegistrar();
+
     @Override
     protected void encode(ChannelHandlerContext ctx, Serializable msg, ByteBuf out) throws Exception {
         int startIdx = out.writerIndex();
@@ -19,7 +21,7 @@ public class NetworkMessageEncoder extends MessageToByteEncoder<Serializable> {
         ObjectOutputStream oout = null;
         try {
             bout.write(LENGTH_PLACEHOLDER);
-            oout = new NetworkObjectOutputStream(bout);
+            oout = new NetworkObjectOutputStream(bout, registrar);
             oout.writeObject(msg);
             oout.flush();
         } finally {

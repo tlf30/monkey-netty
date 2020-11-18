@@ -6,9 +6,13 @@ import com.jme3.input.controls.ActionListener;
 import com.jme3.input.controls.KeyTrigger;
 import io.tlf.monkeynetty.MessageListener;
 import io.tlf.monkeynetty.NetworkClient;
+import io.tlf.monkeynetty.NetworkRegistrar;
 import io.tlf.monkeynetty.NetworkServer;
 import io.tlf.monkeynetty.client.NettyClient;
 import io.tlf.monkeynetty.msg.NetworkMessage;
+
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class JmeClient extends SimpleApplication {
 
@@ -48,6 +52,8 @@ public class JmeClient extends SimpleApplication {
     }
 
     public static void main(String[] args) {
+        Logger.getLogger(NetworkRegistrar.class.getName()).setLevel(Level.FINE);
+        Logger.getLogger(NetworkClient.class.getName()).setLevel(Level.FINE);
         JmeClient client = new JmeClient();
         client.start();
     }

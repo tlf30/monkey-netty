@@ -8,8 +8,6 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.serialization.ClassResolvers;
-import io.netty.handler.codec.serialization.ObjectDecoder;
-import io.netty.handler.codec.serialization.ObjectEncoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
@@ -87,10 +85,8 @@ public class NettyServer extends BaseAppState implements NetworkServer {
 
     public void onEnable() {
         LOGGER.log(Level.INFO, "Loading Netty.IO Server {0} on port {1,number,#}", new Object[]{getService(), getPort()});
-
         setupTcp();
         setupUdp();
-
         LOGGER.log(Level.INFO, "Server {0} running on port {1,number,#}", new Object[]{getService(), getPort()});
     }
 
@@ -139,6 +135,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
             LOGGER.log(Level.INFO, "Server rejected connection from {0}", client.getAddress());
         } else {
             if (udpClients.containsValue(client)) {
+                //Run listeners
                 ((NettyConnection) client).connect();
                 LOGGER.log(Level.INFO, "Connection received from {0}", client.getAddress());
                 try {
@@ -270,8 +267,8 @@ public class NettyServer extends BaseAppState implements NetworkServer {
 
                             //Setup pipeline
                             p.addLast(
-                                    new ObjectEncoder(),
-                                    new ObjectDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
+                                    new NetworkMessageEncoder(),
+                                    new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
                                     new ChannelInboundHandlerAdapter() {
                                         @Override
                                         public void channelRead(ChannelHandlerContext ctx, Object msg) {
@@ -324,8 +321,8 @@ public class NettyServer extends BaseAppState implements NetworkServer {
 
                             //Setup pipeline
                             p.addLast(
-                                    new ObjectEncoder(),
-                                    new ObjectDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
+                                    new NetworkMessageEncoder(),
+                                    new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
                                     new ChannelInboundHandlerAdapter() {
                                         @Override
                                         public void channelRead(ChannelHandlerContext ctx, Object msg) {

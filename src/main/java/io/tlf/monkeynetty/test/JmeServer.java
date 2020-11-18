@@ -1,12 +1,13 @@
 package io.tlf.monkeynetty.test;
 
 import com.jme3.app.SimpleApplication;
-import io.tlf.monkeynetty.ConnectionListener;
-import io.tlf.monkeynetty.MessageListener;
-import io.tlf.monkeynetty.NetworkClient;
-import io.tlf.monkeynetty.NetworkServer;
+import com.jme3.system.JmeContext;
+import io.tlf.monkeynetty.*;
 import io.tlf.monkeynetty.msg.NetworkMessage;
 import io.tlf.monkeynetty.server.NettyServer;
+
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class JmeServer extends SimpleApplication {
 
@@ -40,7 +41,9 @@ public class JmeServer extends SimpleApplication {
     }
 
     public static void main(String[] args) {
+        Logger.getLogger(NetworkRegistrar.class.getName()).setLevel(Level.FINE);
+        Logger.getLogger(NetworkServer.class.getName()).setLevel(Level.FINE);
         JmeServer server = new JmeServer();
-        server.start();
+        server.start(JmeContext.Type.Headless);
     }
 }

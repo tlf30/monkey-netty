@@ -2,50 +2,60 @@ package io.tlf.monkeynetty;
 
 import io.tlf.monkeynetty.msg.NetworkMessage;
 
+import java.io.Serializable;
 import java.util.HashMap;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 
 /**
  * NetworkRegistrar keeps a record of class names to UIDs.
  * This is used by monkey-netty for transporting objects by using UIDs for each object.
  */
-public final class NetworkRegistrar {
-    private NetworkRegistrar() {}
-
-    private static HashMap<String, Integer> classUID = new HashMap<>();
-    private static HashMap<Integer, String> uidClass = new HashMap<>();
-    private volatile static int uid = 0;
-
-    /**
-     * Internal Use Only
-     * Register internal messages
-     */
-    private static void registerInternal() {
-
+public class NetworkRegistrar {
+    public NetworkRegistrar() {
     }
 
+    private final static Logger LOGGER = Logger.getLogger(NetworkRegistrar.class.getName());
+
+    private HashMap<String, Integer> classUID = new HashMap<>();
+    private HashMap<Integer, String> uidClass = new HashMap<>();
+    private volatile int uid = 0;
+
+
     /**
-     * Clear the registry of class and UID relations.
+     * Register a class with the registrar.
+     * If attempting to register the same class multiple times, the additional attempts
+     * to register will be silently ignored.
+     *
+     * @param clazz The class to register
      */
-    public synchronized static void clear() {
-        classUID.clear();
-        uidClass.clear();
-        uid = 0;
-        registerInternal();
+    public void register(Class<? extends Serializable> clazz) {
+        register(clazz.getName());
     }
 
     /**
      * Register a class with the registrar.
      * If attempting to register the same class multiple times, the additional attempts
      * to register will be silently ignored.
-     * @param clazz The class to register
+     *
+     * @param className The fully qualified class name to register
      */
-    public synchronized static void register(Class<? extends NetworkMessage> clazz) {
-        if (!classUID.containsKey(clazz.getName())) {
+    public void register(String className) {
+        if (!classUID.containsKey(className)) {
             int newId = uid++;
-            classUID.put(clazz.getName(), newId);
-            uidClass.put(newId, clazz.getName());
+            register(className, newId);
         }
+    }
+
+    /**
+     * Internal Use Only
+     * Force a classname and ID pair
+     *
+     * @param className The fully qualified class name to register
+     * @param id        The UID of the class
+     */
+    public void register(String className, int id) {
+        classUID.put(className, id);
+        uidClass.put(id, className);
     }
 
     /**
@@ -53,9 +63,10 @@ public final class NetworkRegistrar {
      * Removing a class from the registrar will not free the class ID.
      * If attempting to unregistering a class multiple times, the additional attempts
      * will be silently ignored.
+     *
      * @param clazz The class to unreigster
      */
-    public synchronized static void unregister(Class<? extends NetworkMessage> clazz) {
+    public void unregister(Class<? extends NetworkMessage> clazz) {
         if (classUID.containsKey(clazz.getName())) {
             int id = classUID.get(clazz.getName());
             classUID.remove(clazz.getName());
@@ -66,14 +77,14 @@ public final class NetworkRegistrar {
     /**
      * @return The registry relating UID to class name
      */
-    protected synchronized static HashMap<Integer, String> getUidRegistry() {
+    public HashMap<Integer, String> getUidRegistry() {
         return uidClass;
     }
 
     /**
      * @return The registry relating class name to UID
      */
-    protected static HashMap<String, Integer> getClassRegistry() {
+    public HashMap<String, Integer> getClassRegistry() {
         return classUID;
     }
 }

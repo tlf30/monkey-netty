@@ -9,9 +9,13 @@ public class NetworkObjectOutputStream extends ObjectOutputStream {
 
     static final int TYPE_FAT_DESCRIPTOR = 0;
     static final int TYPE_THIN_DESCRIPTOR = 1;
+    static final int TYPE_NEW_DESCRIPTOR = 2;
 
-    NetworkObjectOutputStream(OutputStream out) throws IOException {
+    private NetworkRegistrar registrar;
+
+    NetworkObjectOutputStream(OutputStream out, NetworkRegistrar registrar) throws IOException {
         super(out);
+        this.registrar = registrar;
     }
 
     @Override
@@ -27,12 +31,16 @@ public class NetworkObjectOutputStream extends ObjectOutputStream {
             write(TYPE_FAT_DESCRIPTOR);
             super.writeClassDescriptor(desc);
         } else {
-            write(TYPE_THIN_DESCRIPTOR);
-            Integer id = NetworkRegistrar.getClassRegistry().get(clazz.getName());
-            if (id == null) {
-                throw new NetworkMessageException("Attempted to encode unregistered network message: " + clazz.getName());
+            Integer id = registrar.getClassRegistry().get(clazz.getName());
+            if (id != null) {
+                write(TYPE_THIN_DESCRIPTOR);
+                writeInt(id);
+            } else {
+                registrar.register(clazz.getName());
+                write(TYPE_NEW_DESCRIPTOR);
+                writeUTF(clazz.getName());
+                writeInt(registrar.getClassRegistry().get(clazz.getName()));
             }
-            writeInt(id);
         }
     }
 }

@@ -13,16 +13,13 @@ import io.netty.channel.socket.nio.NioDatagramChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.serialization.ClassResolvers;
 import io.netty.handler.codec.serialization.DatagramPacketObjectDecoder;
-import io.netty.handler.codec.serialization.ObjectDecoder;
-import io.netty.handler.codec.serialization.ObjectEncoder;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import io.tlf.monkeynetty.ConnectionListener;
-import io.tlf.monkeynetty.NetworkClient;
-import io.tlf.monkeynetty.MessageListener;
+import io.tlf.monkeynetty.*;
 import io.tlf.monkeynetty.msg.NetworkMessage;
-import io.tlf.monkeynetty.NetworkProtocol;
 import io.tlf.monkeynetty.msg.UdpConHashMessage;
 
 import java.net.InetSocketAddress;
@@ -129,17 +126,15 @@ public class NettyClient extends BaseAppState implements NetworkClient {
 
                 //Setup pipeline
                 p.addLast(
-                        new ObjectEncoder(),
-                        new ObjectDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
+                        new NetworkMessageEncoder(),
+                        new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
                         new ChannelInboundHandlerAdapter() {
                             @Override
                             public void channelRead(ChannelHandlerContext ctx, Object msg) {
                                 if (msg instanceof UdpConHashMessage) {
                                     String hash = ((UdpConHashMessage) msg).getUdpHash();
                                     setupUdp(hash);
-                                    return;
-                                }
-                                if (msg instanceof NetworkMessage) {
+                                } else if (msg instanceof NetworkMessage) {
                                     receive((NetworkMessage) msg);
                                 } else {
                                     LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
@@ -184,7 +179,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                 //Setup pipeline
                 ChannelPipeline p = socketChannel.pipeline();
                 p.addLast(
-                        new ObjectEncoder(),
+                        new NetworkMessageEncoder(),
                         new DatagramPacketObjectDecoder(ClassResolvers.cacheDisabled(null)),
                         new ChannelInboundHandlerAdapter() {
                             @Override

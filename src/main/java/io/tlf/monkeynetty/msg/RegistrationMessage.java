@@ -27,24 +27,43 @@ package io.tlf.monkeynetty.msg;
 import io.tlf.monkeynetty.NetworkProtocol;
 
 import java.io.Serializable;
+import java.util.HashMap;
 
 /**
  * @author Trevor Flynn trevorflynn@liquidcrystalstudios.com
  * <p>
- * NetworkMessage interface provides a base for all monkey-netty messages.
- * When implementing this interface you user defined messages, monkey-netty
- * will optimize message transport, and enable the user to use the monkey-netty
- * interface.
+ * RegistrationMessage is used to pass
+ * a cross reference of class names to class unique identifiers to the client's
+ * message encoder and decoder.
  */
-public interface NetworkMessage extends Serializable {
+public class RegistrationMessage implements NetworkMessage {
+    private HashMap<Integer, String> classKeys;
 
     /**
-     * @return A unique name of the message, this is not used during message transport.
+     * @return The cross reference of class names to UIDs.
      */
-    public String getName();
+    public HashMap<Integer, String> getClassKeys() {
+        return classKeys;
+    }
 
     /**
-     * @return The communication protocol for which monkey-netty should use when transporting this message.
+     * Set the xRef of class names to UIDs. Class names must be fully qualified classpath names.
+     * i.e. java.lang.String
+     * And UIDs must be completely unique.
+     *
+     * @param classKeys a cross reference of class names to UIDs
      */
-    public NetworkProtocol getProtocol();
+    public void setClassKeys(HashMap<Integer, String> classKeys) {
+        this.classKeys = classKeys;
+    }
+
+    @Override
+    public String getName() {
+        return "registration-message";
+    }
+
+    @Override
+    public NetworkProtocol getProtocol() {
+        return NetworkProtocol.TCP;
+    }
 }

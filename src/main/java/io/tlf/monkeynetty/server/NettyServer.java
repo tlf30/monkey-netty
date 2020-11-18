@@ -59,7 +59,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     }
 
     public NettyServer(String service, boolean ssl, int port) {
-        this(service, ssl, true,null, null, port);
+        this(service, ssl, true, null, null, port);
     }
 
     public NettyServer(String service, boolean ssl, File cert, File key, int port) {

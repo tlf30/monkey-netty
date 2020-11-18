@@ -10,6 +10,8 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.serialization.ClassResolvers;
 import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 import io.tlf.monkeynetty.*;
 import io.tlf.monkeynetty.msg.NetworkMessage;
 import io.tlf.monkeynetty.msg.UdpConHashMessage;
@@ -31,7 +33,8 @@ public class NettyServer extends BaseAppState implements NetworkServer {
 
     private int maxConnections = 10;
     private boolean blocking = false;
-
+    private LogLevel logLevel;
+    
     //Netty objects
     private EventLoopGroup tcpConGroup;
     private EventLoopGroup tcpMsgGroup;
@@ -105,6 +108,10 @@ public class NettyServer extends BaseAppState implements NetworkServer {
 
     public void setMaxConnections(int maxConnections) {
         this.maxConnections = maxConnections;
+    }
+
+    public void setLogLevel(LogLevel logLevel) {
+        this.logLevel = logLevel;
     }
 
     @Override
@@ -216,11 +223,13 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                     LOGGER.log(Level.WARNING, "Exception thrown running connection listeners", ex);
                                 }
                             });
-
                             //Setup pipeline
+                            if (logLevel != null) {
+                                p.addLast(new LoggingHandler(logLevel));
+                            }
                             p.addLast(
                                     new ObjectEncoder(),
-                                    new ObjectDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
+                                    new ObjectDecoder(Integer.MAX_VALUE, ClassResolvers.softCachingResolver(null)),
                                     new ChannelInboundHandlerAdapter() {
                                         @Override
                                         public void channelRead(ChannelHandlerContext ctx, Object msg) {

@@ -1,4 +1,4 @@
-package io.tlf.monkeynetty.test;
+package io.tlf.monkeynetty.test.messages;
 
 import io.tlf.monkeynetty.NetworkProtocol;
 import io.tlf.monkeynetty.msg.NetworkMessage;

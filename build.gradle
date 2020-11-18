@@ -26,8 +26,6 @@ dependencies {
     //Netty.IO
     compile group: 'io.netty', name: 'netty-all', version: nettyioVersion
     compile group: 'io.netty', name: 'netty-transport', version: nettyioVersion
-    //Reflections
-    compile 'org.reflections:reflections:0.9.12'
 }
 
 

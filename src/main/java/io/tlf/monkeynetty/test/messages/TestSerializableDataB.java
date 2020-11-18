@@ -43,8 +43,8 @@ public class TestSerializableDataB implements Serializable {
     public TestSerializableDataB() {
         map.put("test1", 12);
         map.put("test2", "TestString");
-        map.put("test2", new int[]{34,3245,534543,2233});
-        map.put("test3", new ArrayList<>(Arrays.asList("TestValue1", "TestValue2", "TestValue3")));
+        map.put("test3", new int[]{34,3245,534543,2233});
+        map.put("test4", new ArrayList<>(Arrays.asList("TestValue1", "TestValue2", "TestValue3")));
     }
     
     @Override

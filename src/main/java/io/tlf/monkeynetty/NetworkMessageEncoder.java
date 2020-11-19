@@ -29,6 +29,7 @@ import io.netty.buffer.ByteBufOutputStream;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 
+import java.io.NotSerializableException;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 
@@ -56,6 +57,8 @@ public class NetworkMessageEncoder extends MessageToByteEncoder<Serializable> {
             oout = new NetworkObjectOutputStream(bout, registrar);
             oout.writeObject(msg);
             oout.flush();
+        } catch (NotSerializableException nsex) {
+            throw new NetworkMessageException("Non-Serializable object " + nsex.getMessage() + " found in message " + msg.getClass().getName());
         } finally {
             if (oout != null) {
                 oout.close();

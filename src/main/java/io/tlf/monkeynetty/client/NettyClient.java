@@ -37,6 +37,13 @@ import io.netty.channel.socket.nio.NioDatagramChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.serialization.ClassResolvers;
 import io.netty.handler.codec.serialization.DatagramPacketObjectDecoder;
+import io.netty.handler.codec.serialization.ObjectDecoder;
+import io.netty.handler.codec.serialization.ObjectEncoder;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
+import io.tlf.monkeynetty.ConnectionListener;
+import io.tlf.monkeynetty.NetworkClient;
+import io.tlf.monkeynetty.MessageListener;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
@@ -64,7 +71,13 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     protected boolean ssl;
     protected boolean sslSelfSigned;
     protected volatile boolean reconnect = false;
-
+    /*
+    * Connection timeout in milliseconds used when client is unable connect to server
+    * Note: Currently it do not apply when server is "off"
+    */
+    protected int connectionTimeout = 10000;
+    private LogLevel logLevel;
+    
     //Netty
     private EventLoopGroup tcpGroup = new NioEventLoopGroup();
     private Bootstrap tcpClientBootstrap = new Bootstrap();
@@ -95,7 +108,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         this.ssl = ssl;
         this.sslSelfSigned = sslSelfSigned;
     }
-
+    
     @Override
     public void initialize(Application app) {
 
@@ -114,6 +127,18 @@ public class NettyClient extends BaseAppState implements NetworkClient {
 
     public void onDisable() {
         disconnect();
+    }
+
+    public int getConnectionTimeout() {
+        return connectionTimeout;
+    }
+
+    public void setConnectionTimeout(int connectionTimeout) {
+        this.connectionTimeout = connectionTimeout;
+    }
+
+    public void setLogLevel(LogLevel logLevel) {
+        this.logLevel = logLevel;
     }
 
     private void setupTcp() {
@@ -141,18 +166,21 @@ public class NettyClient extends BaseAppState implements NetworkClient {
             protected void initChannel(SocketChannel socketChannel) {
                 tcpChannel = socketChannel;
                 SocketChannelConfig cfg = tcpChannel.config();
-                cfg.setConnectTimeoutMillis(10000);
+                cfg.setConnectTimeoutMillis(connectionTimeout);
 
                 ChannelPipeline p = socketChannel.pipeline();
                 //Setup ssl
                 if (ssl) {
                     p.addLast(sslContext.newHandler(socketChannel.alloc(), server, port));
                 }
-
+                //Set log level
+                if (logLevel != null) {
+                    p.addLast(new LoggingHandler(logLevel));
+                }
                 //Setup pipeline
                 p.addLast(
                         new NetworkMessageEncoder(),
-                        new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
+                        new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.softCachingResolver(null)),
                         new ChannelInboundHandlerAdapter() {
                             @Override
                             public void channelRead(ChannelHandlerContext ctx, Object msg) {
@@ -200,7 +228,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
             protected void initChannel(DatagramChannel socketChannel) {
                 udpChannel = socketChannel;
                 DatagramChannelConfig cfg = udpChannel.config();
-                cfg.setConnectTimeoutMillis(10000);
+                cfg.setConnectTimeoutMillis(connectionTimeout);
                 //Setup pipeline
                 ChannelPipeline p = socketChannel.pipeline();
                 p.addLast(

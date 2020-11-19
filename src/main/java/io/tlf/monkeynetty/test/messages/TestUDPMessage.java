@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-package io.tlf.monkeynetty.test;
+package io.tlf.monkeynetty.test.messages;
 
 import io.tlf.monkeynetty.NetworkProtocol;
 import io.tlf.monkeynetty.msg.NetworkMessage;
@@ -30,25 +30,25 @@ import io.tlf.monkeynetty.msg.NetworkMessage;
 /**
  * @author Trevor Flynn trevorflynn@liquidcrystalstudios.com
  */
-public class TestTCPMessage implements NetworkMessage {
+public class TestUDPMessage implements NetworkMessage {
 
-    private int someValue;
+    private String someValue;
 
     @Override
     public String getName() {
-        return "Test TCP Message";
+        return "Test UDP Message";
     }
 
     @Override
     public NetworkProtocol getProtocol() {
-        return NetworkProtocol.TCP;
+        return NetworkProtocol.UDP;
     }
 
-    public int getSomeValue() {
+    public String getSomeValue() {
         return someValue;
     }
 
-    public void setSomeValue(int someValue) {
+    public void setSomeValue(String someValue) {
         this.someValue = someValue;
     }
 }

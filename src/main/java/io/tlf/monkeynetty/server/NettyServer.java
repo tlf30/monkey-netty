@@ -8,6 +8,10 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.serialization.ClassResolvers;
+import io.netty.handler.codec.serialization.ObjectDecoder;
+import io.netty.handler.codec.serialization.ObjectEncoder;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
@@ -33,7 +37,8 @@ public class NettyServer extends BaseAppState implements NetworkServer {
 
     private int maxConnections = 10;
     private boolean blocking = false;
-
+    private LogLevel logLevel;
+    
     //Netty objects
     private EventLoopGroup tcpConGroup;
     private EventLoopGroup tcpMsgGroup;
@@ -204,6 +209,10 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         return new NetworkProtocol[]{NetworkProtocol.UDP, NetworkProtocol.TCP};
     }
 
+    public void setLogLevel(LogLevel logLevel) {
+        this.logLevel = logLevel;
+    }
+    
     private void setupTcp() {
         //Setup ssl
         if (ssl) {
@@ -266,9 +275,12 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                             }
 
                             //Setup pipeline
+                            if (logLevel != null) {
+                                p.addLast(new LoggingHandler(logLevel));
+                            }
                             p.addLast(
                                     new NetworkMessageEncoder(),
-                                    new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
+                                    new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.softCachingResolver(null)),
                                     new ChannelInboundHandlerAdapter() {
                                         @Override
                                         public void channelRead(ChannelHandlerContext ctx, Object msg) {

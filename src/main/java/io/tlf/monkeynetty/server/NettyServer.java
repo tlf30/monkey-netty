@@ -38,7 +38,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     private int maxConnections = 10;
     private boolean blocking = false;
     private LogLevel logLevel;
-    
+
     //Netty objects
     private EventLoopGroup tcpConGroup;
     private EventLoopGroup tcpMsgGroup;
@@ -212,7 +212,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     public void setLogLevel(LogLevel logLevel) {
         this.logLevel = logLevel;
     }
-    
+
     private void setupTcp() {
         //Setup ssl
         if (ssl) {
@@ -332,6 +332,9 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                             });
 
                             //Setup pipeline
+                            if (logLevel != null) {
+                                p.addLast(new LoggingHandler(logLevel));
+                            }
                             p.addLast(
                                     new NetworkMessageEncoder(),
                                     new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),

@@ -24,10 +24,7 @@ SOFTWARE.
 
 package io.tlf.monkeynetty;
 
-import java.io.IOException;
-import java.io.ObjectOutputStream;
-import java.io.ObjectStreamClass;
-import java.io.OutputStream;
+import java.io.*;
 
 /**
  * @author Trevor Flynn trevorflynn@liquidcrystalstudios.com
@@ -58,6 +55,9 @@ public class NetworkObjectOutputStream extends ObjectOutputStream {
     @Override
     protected void writeClassDescriptor(ObjectStreamClass desc) throws IOException {
         Class<?> clazz = desc.forClass();
+        if (!Serializable.class.isAssignableFrom(clazz)) {
+            throw new NetworkMessageException("Non-Serializable object found: " + clazz.getName());
+        }
         if (clazz.isPrimitive() || clazz.isArray() || clazz.isInterface() ||
                 desc.getSerialVersionUID() == 0) {
             write(TYPE_FAT_DESCRIPTOR);

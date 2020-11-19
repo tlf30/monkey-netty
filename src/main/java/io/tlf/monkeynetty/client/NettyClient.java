@@ -77,7 +77,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     */
     protected int connectionTimeout = 10000;
     private LogLevel logLevel;
-    
+
     //Netty
     private EventLoopGroup tcpGroup = new NioEventLoopGroup();
     private Bootstrap tcpClientBootstrap = new Bootstrap();
@@ -108,7 +108,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         this.ssl = ssl;
         this.sslSelfSigned = sslSelfSigned;
     }
-    
+
     @Override
     public void initialize(Application app) {
 
@@ -231,6 +231,10 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                 cfg.setConnectTimeoutMillis(connectionTimeout);
                 //Setup pipeline
                 ChannelPipeline p = socketChannel.pipeline();
+                //Setup pipeline
+                if (logLevel != null) {
+                    p.addLast(new LoggingHandler(logLevel));
+                }
                 p.addLast(
                         new NetworkMessageEncoder(),
                         new DatagramPacketObjectDecoder(ClassResolvers.cacheDisabled(null)),
@@ -350,13 +354,13 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                 listener.onDisconnect(this);
             }
         } catch (Exception ex) {
-            Logger.getLogger(NettyClient.class.getName()).log(Level.SEVERE, null, ex);
+            LOGGER.log(Level.SEVERE, null, ex);
         }
         try {
             tcpGroup.shutdownGracefully();
             udpGroup.shutdownGracefully();
         } catch (Exception ex) {
-            Logger.getLogger(NettyClient.class.getName()).log(Level.SEVERE, null, ex);
+            LOGGER.log(Level.SEVERE, null, ex);
         }
     }
 
@@ -404,12 +408,14 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         }
     }
 
+    @Override
     public void registerListener(MessageListener handler) {
         synchronized (handlerLock) {
             handlers.add(handler);
         }
     }
 
+    @Override
     public void unregisterListener(MessageListener handler) {
         synchronized (handlerLock) {
             handlers.remove(handler);

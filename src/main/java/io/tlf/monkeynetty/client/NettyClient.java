@@ -1,3 +1,27 @@
+/*
+MIT License
+
+Copyright (c) 2020 Trevor Flynn
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
 package io.tlf.monkeynetty.client;
 
 import com.jme3.app.Application;
@@ -13,16 +37,11 @@ import io.netty.channel.socket.nio.NioDatagramChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.serialization.ClassResolvers;
 import io.netty.handler.codec.serialization.DatagramPacketObjectDecoder;
-import io.netty.handler.codec.serialization.ObjectDecoder;
-import io.netty.handler.codec.serialization.ObjectEncoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import io.tlf.monkeynetty.ConnectionListener;
-import io.tlf.monkeynetty.NetworkClient;
-import io.tlf.monkeynetty.MessageListener;
+import io.tlf.monkeynetty.*;
 import io.tlf.monkeynetty.msg.NetworkMessage;
-import io.tlf.monkeynetty.NetworkProtocol;
 import io.tlf.monkeynetty.msg.UdpConHashMessage;
 
 import java.net.InetSocketAddress;
@@ -32,6 +51,9 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+/**
+ * @author Trevor Flynn trevorflynn@liquidcrystalstudios.com
+ */
 public class NettyClient extends BaseAppState implements NetworkClient {
 
     private final static Logger LOGGER = Logger.getLogger(NettyClient.class.getName());
@@ -129,17 +151,15 @@ public class NettyClient extends BaseAppState implements NetworkClient {
 
                 //Setup pipeline
                 p.addLast(
-                        new ObjectEncoder(),
-                        new ObjectDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
+                        new NetworkMessageEncoder(),
+                        new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
                         new ChannelInboundHandlerAdapter() {
                             @Override
                             public void channelRead(ChannelHandlerContext ctx, Object msg) {
                                 if (msg instanceof UdpConHashMessage) {
                                     String hash = ((UdpConHashMessage) msg).getUdpHash();
                                     setupUdp(hash);
-                                    return;
-                                }
-                                if (msg instanceof NetworkMessage) {
+                                } else if (msg instanceof NetworkMessage) {
                                     receive((NetworkMessage) msg);
                                 } else {
                                     LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
@@ -184,7 +204,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                 //Setup pipeline
                 ChannelPipeline p = socketChannel.pipeline();
                 p.addLast(
-                        new ObjectEncoder(),
+                        new NetworkMessageEncoder(),
                         new DatagramPacketObjectDecoder(ClassResolvers.cacheDisabled(null)),
                         new ChannelInboundHandlerAdapter() {
                             @Override

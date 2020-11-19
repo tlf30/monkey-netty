@@ -8,8 +8,6 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.serialization.ClassResolvers;
-import io.netty.handler.codec.serialization.ObjectDecoder;
-import io.netty.handler.codec.serialization.ObjectEncoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
@@ -85,15 +83,15 @@ public class NettyServer extends BaseAppState implements NetworkServer {
 
     }
 
+    @Override
     public void onEnable() {
         LOGGER.log(Level.INFO, "Loading Netty.IO Server {0} on port {1,number,#}", new Object[]{getService(), getPort()});
-
         setupTcp();
         setupUdp();
-
         LOGGER.log(Level.INFO, "Server {0} running on port {1,number,#}", new Object[]{getService(), getPort()});
     }
 
+    @Override
     public void onDisable() {
         LOGGER.log(Level.INFO, "Unloading Netty.IO Server {0} on port {1,number,#}", new Object[]{getService(), getPort()});
 
@@ -132,13 +130,13 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         this.maxConnections = maxConnections;
     }
 
-    @Override
-    public void receive(NetworkClient client) {
+    private void receive(NetworkClient client) {
         if (isBlocking() || getConnections() >= getMaxConnections() || !(client instanceof NettyConnection)) {
             client.disconnect();
             LOGGER.log(Level.INFO, "Server rejected connection from {0}", client.getAddress());
         } else {
             if (udpClients.containsValue(client)) {
+                //Run listeners
                 ((NettyConnection) client).connect();
                 LOGGER.log(Level.INFO, "Connection received from {0}", client.getAddress());
                 try {
@@ -159,8 +157,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         }
     }
 
-    @Override
-    public void receive(NetworkClient client, NetworkMessage message) {
+    private void receive(NetworkClient client, NetworkMessage message) {
         client.receive(message);
         for (MessageListener handler : messageListeners) {
             for (Class a : handler.getSupportedMessages()) {
@@ -270,8 +267,8 @@ public class NettyServer extends BaseAppState implements NetworkServer {
 
                             //Setup pipeline
                             p.addLast(
-                                    new ObjectEncoder(),
-                                    new ObjectDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
+                                    new NetworkMessageEncoder(),
+                                    new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
                                     new ChannelInboundHandlerAdapter() {
                                         @Override
                                         public void channelRead(ChannelHandlerContext ctx, Object msg) {
@@ -324,8 +321,8 @@ public class NettyServer extends BaseAppState implements NetworkServer {
 
                             //Setup pipeline
                             p.addLast(
-                                    new ObjectEncoder(),
-                                    new ObjectDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
+                                    new NetworkMessageEncoder(),
+                                    new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
                                     new ChannelInboundHandlerAdapter() {
                                         @Override
                                         public void channelRead(ChannelHandlerContext ctx, Object msg) {
@@ -375,22 +372,32 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         //The client disconnected unexpectedly, we can ignore.
     }
 
+    @Override
     public void registerListener(MessageListener handler) {
         messageListeners.add(handler);
     }
 
+    @Override
     public void unregisterListener(MessageListener handler) {
         messageListeners.remove(handler);
     }
 
+    @Override
     public void registerListener(ConnectionListener listener) {
         connectionListeners.add(listener);
     }
 
+    @Override
     public void unregisterListener(ConnectionListener listener) {
         connectionListeners.remove(listener);
     }
 
+    /**
+     * Generates a base64 like hash
+     *
+     * @param len The number of characters to generate in the hash
+     * @return The generated base64 like hash
+     */
     private String getUdpHash(int len) {
         String SALTCHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%^&*()_+-=[]{};':\",.<>/?\\";
         StringBuilder salt = new StringBuilder();

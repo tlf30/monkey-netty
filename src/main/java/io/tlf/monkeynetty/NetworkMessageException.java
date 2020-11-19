@@ -22,33 +22,17 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-package io.tlf.monkeynetty.test;
-
-import io.tlf.monkeynetty.NetworkProtocol;
-import io.tlf.monkeynetty.msg.NetworkMessage;
+package io.tlf.monkeynetty;
 
 /**
- * @author Trevor Flynn trevorflynn@liquidcrystalstudios.com
+ * @author Trevor Flynn trevorflynn@liquidcrystalstudios.comm
  */
-public class TestTCPMessage implements NetworkMessage {
-
-    private int someValue;
-
-    @Override
-    public String getName() {
-        return "Test TCP Message";
+public class NetworkMessageException extends RuntimeException {
+    public NetworkMessageException() {
+        super();
     }
 
-    @Override
-    public NetworkProtocol getProtocol() {
-        return NetworkProtocol.TCP;
-    }
-
-    public int getSomeValue() {
-        return someValue;
-    }
-
-    public void setSomeValue(int someValue) {
-        this.someValue = someValue;
+    public NetworkMessageException(String msg) {
+        super(msg);
     }
 }

@@ -34,10 +34,10 @@ import java.io.Serializable;
 
 /**
  * @author Trevor Flynn trevorflynn@liquidcrystalstudios.com
- *
+ * <p>
  * Encodes a NetworkMessage into a binary stream for sending to remote side.
  * Utilizes NetworkObjectOutputStream
- *
+ * <p>
  * Based from: io.netty.handler.codec.serialization.ObjectEncoder
  */
 public class NetworkMessageEncoder extends MessageToByteEncoder<Serializable> {

@@ -31,7 +31,7 @@ import java.io.OutputStream;
 
 /**
  * @author Trevor Flynn trevorflynn@liquidcrystalstudios.com
- *
+ * <p>
  * Converts a Object into a binary stream.
  * The first instance of a class sent will send a UID and class name to remote side.
  * All future instances of the class sent will only send UID.

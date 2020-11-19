@@ -83,6 +83,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
 
     }
 
+    @Override
     public void onEnable() {
         LOGGER.log(Level.INFO, "Loading Netty.IO Server {0} on port {1,number,#}", new Object[]{getService(), getPort()});
         setupTcp();
@@ -90,6 +91,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         LOGGER.log(Level.INFO, "Server {0} running on port {1,number,#}", new Object[]{getService(), getPort()});
     }
 
+    @Override
     public void onDisable() {
         LOGGER.log(Level.INFO, "Unloading Netty.IO Server {0} on port {1,number,#}", new Object[]{getService(), getPort()});
 
@@ -128,8 +130,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         this.maxConnections = maxConnections;
     }
 
-    @Override
-    public void receive(NetworkClient client) {
+    private void receive(NetworkClient client) {
         if (isBlocking() || getConnections() >= getMaxConnections() || !(client instanceof NettyConnection)) {
             client.disconnect();
             LOGGER.log(Level.INFO, "Server rejected connection from {0}", client.getAddress());
@@ -156,8 +157,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         }
     }
 
-    @Override
-    public void receive(NetworkClient client, NetworkMessage message) {
+    private void receive(NetworkClient client, NetworkMessage message) {
         client.receive(message);
         for (MessageListener handler : messageListeners) {
             for (Class a : handler.getSupportedMessages()) {
@@ -372,22 +372,32 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         //The client disconnected unexpectedly, we can ignore.
     }
 
+    @Override
     public void registerListener(MessageListener handler) {
         messageListeners.add(handler);
     }
 
+    @Override
     public void unregisterListener(MessageListener handler) {
         messageListeners.remove(handler);
     }
 
+    @Override
     public void registerListener(ConnectionListener listener) {
         connectionListeners.add(listener);
     }
 
+    @Override
     public void unregisterListener(ConnectionListener listener) {
         connectionListeners.remove(listener);
     }
 
+    /**
+     * Generates a base64 like hash
+     *
+     * @param len The number of characters to generate in the hash
+     * @return The generated base64 like hash
+     */
     private String getUdpHash(int len) {
         String SALTCHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%^&*()_+-=[]{};':\",.<>/?\\";
         StringBuilder salt = new StringBuilder();

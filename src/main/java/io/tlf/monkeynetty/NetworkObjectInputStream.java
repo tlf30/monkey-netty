@@ -30,7 +30,7 @@ import java.io.*;
 
 /**
  * @author Trevor Flynn trevorflynn@liquidcrystalstudios.com
- *
+ * <p>
  * Converts a binary stream into an Object.
  * If a class name and UID are sent with the object, this will remember the class to UID relationship.
  * All future instances of the UID will be related to the correct class for deserialization.

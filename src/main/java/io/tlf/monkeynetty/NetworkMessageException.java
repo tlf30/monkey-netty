@@ -35,4 +35,8 @@ public class NetworkMessageException extends RuntimeException {
     public NetworkMessageException(String msg) {
         super(msg);
     }
+
+    public NetworkMessageException(String msg, Throwable cause) {
+        super(msg, cause);
+    }
 }

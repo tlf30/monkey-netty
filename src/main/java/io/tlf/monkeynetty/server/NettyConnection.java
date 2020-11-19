@@ -31,6 +31,7 @@ import io.tlf.monkeynetty.ConnectionListener;
 import io.tlf.monkeynetty.NetworkClient;
 import io.tlf.monkeynetty.NetworkServer;
 import io.tlf.monkeynetty.MessageListener;
+import io.tlf.monkeynetty.client.NettyClient;
 import io.tlf.monkeynetty.msg.NetworkMessage;
 import io.tlf.monkeynetty.NetworkProtocol;
 
@@ -41,6 +42,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
 
 /**
  * @author Trevor Flynn trevorflynn@liquidcrystalstudios.com
@@ -117,20 +120,25 @@ public class NettyConnection implements NetworkClient {
     @Override
     public void send(NetworkMessage message) {
         ChannelFuture future;
-        if (message.getProtocol() == NetworkProtocol.TCP) {
-            future = tcpConn.writeAndFlush(message);
-        } else {
-            future = udpConn.writeAndFlush(message);
-        }
-        future.addListener((ChannelFutureListener) future1 -> {
-            if (!future1.isSuccess()) {
-                if (!(future1.cause() instanceof ClosedChannelException)) {
-                    LOGGER.log(Level.WARNING, "Error on " + (message.getProtocol() == NetworkProtocol.TCP ? "TCP" : "UDP") + " channel");
-                    LOGGER.log(Level.WARNING, "Error sending " + message.getName() + " to " + (message.getProtocol() == NetworkProtocol.TCP ? tcpConn.localAddress().toString() : udpConn.localAddress0().toString()));
-                    LOGGER.log(Level.WARNING, "Failed to send message to client", future1.cause());
-                }
+        try {
+            if (message.getProtocol() == NetworkProtocol.TCP) {
+                future = tcpConn.writeAndFlush(message);
+            } else {
+                future = udpConn.writeAndFlush(message);
             }
-        });
+            future.addListener(FIRE_EXCEPTION_ON_FAILURE);
+            future.addListener((ChannelFutureListener) future1 -> {
+                if (!future1.isSuccess()) {
+                    if (!(future1.cause() instanceof ClosedChannelException)) {
+                        LOGGER.log(Level.WARNING, "Error on " + (message.getProtocol() == NetworkProtocol.TCP ? "TCP" : "UDP") + " channel");
+                        LOGGER.log(Level.WARNING, "Error sending " + message.getName() + " to " + (message.getProtocol() == NetworkProtocol.TCP ? tcpConn.localAddress().toString() : udpConn.localAddress0().toString()));
+                        LOGGER.log(Level.WARNING, "Failed to send message to client", future1.cause());
+                    }
+                }
+            });
+        } catch (Exception ex) {
+            LOGGER.log(Level.SEVERE, "Failed to send message to client", ex);
+        }
     }
 
     @Override

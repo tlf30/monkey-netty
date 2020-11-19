@@ -37,13 +37,8 @@ import io.netty.channel.socket.nio.NioDatagramChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.serialization.ClassResolvers;
 import io.netty.handler.codec.serialization.DatagramPacketObjectDecoder;
-import io.netty.handler.codec.serialization.ObjectDecoder;
-import io.netty.handler.codec.serialization.ObjectEncoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
-import io.tlf.monkeynetty.ConnectionListener;
-import io.tlf.monkeynetty.NetworkClient;
-import io.tlf.monkeynetty.MessageListener;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
@@ -57,6 +52,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
 
 /**
  * @author Trevor Flynn trevorflynn@liquidcrystalstudios.com
@@ -338,12 +335,14 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     public void send(NetworkMessage message) {
         try {
             if (message.getProtocol() == NetworkProtocol.TCP) {
-                tcpChannel.writeAndFlush(message);
+                ChannelFuture future = tcpChannel.writeAndFlush(message);
+                future.addListener(FIRE_EXCEPTION_ON_FAILURE);
             } else {
-                udpChannel.writeAndFlush(message);
+                ChannelFuture future = udpChannel.writeAndFlush(message);
+                future.addListener(FIRE_EXCEPTION_ON_FAILURE);
             }
         } catch (Exception ex) {
-            Logger.getLogger(NettyClient.class.getName()).log(Level.SEVERE, null, ex);
+            LOGGER.log(Level.SEVERE, "Failed to send message to server", ex);
         }
     }
 

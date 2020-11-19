@@ -58,7 +58,7 @@ public class NetworkMessageEncoder extends MessageToByteEncoder<Serializable> {
             oout.writeObject(msg);
             oout.flush();
         } catch (NotSerializableException nsex) {
-            throw new NetworkMessageException("Non-Serializable object " + nsex.getMessage() + " found in message " + msg.getClass().getName());
+            throw new NetworkMessageException("Non-Serializable object " + nsex.getMessage() + " found in message " + msg.getClass().getName(), nsex);
         } finally {
             if (oout != null) {
                 oout.close();

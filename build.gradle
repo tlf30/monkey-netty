@@ -1,8 +1,9 @@
 plugins {
 	id 'java'
+    id 'maven-publish'
 }
 
-version = '0.0.0'
+version = '0.1.0-SNAPSHOT'
 group = "io.tlf.monkeynetty"
 ext {
 	//Dependency Versions
@@ -16,6 +17,24 @@ ext {
 repositories {
     mavenCentral()
     jcenter()
+}
+
+publishing {
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/tlf30/monkey-netty")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR")
+                password = System.getenv("GITHUB_TOKEN")
+            }
+        }
+    }
+    publications {
+        gpr(MavenPublication) {
+            from(components.java)
+        }
+    }
 }
 
 dependencies {

@@ -25,21 +25,14 @@ SOFTWARE.
 package io.tlf.monkeynetty;
 
 /**
- * @author Trevor Flynn trevorflynn@liquidcrystalstudios.com
+ * @author Trevor Flynn trevorflynn@liquidcrystalstudios.comm
  */
-public interface ConnectionListener {
+public class NetworkMessageException extends RuntimeException {
+    public NetworkMessageException() {
+        super();
+    }
 
-    /**
-     * Called when a client is connected
-     *
-     * @param client The client connected.
-     */
-    public void onConnect(NetworkClient client);
-
-    /**
-     * Called when a client disconnects
-     *
-     * @param client The client that disconnected.
-     */
-    public void onDisconnect(NetworkClient client);
+    public NetworkMessageException(String msg) {
+        super(msg);
+    }
 }

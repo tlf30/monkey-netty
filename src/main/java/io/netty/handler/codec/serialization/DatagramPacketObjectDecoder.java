@@ -5,20 +5,21 @@ import io.netty.channel.AddressedEnvelope;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.DefaultAddressedEnvelope;
 import io.netty.handler.codec.MessageToMessageDecoder;
+import io.tlf.monkeynetty.NetworkMessageDecoder;
 
 import java.net.InetSocketAddress;
 import java.util.List;
 
 public class DatagramPacketObjectDecoder extends MessageToMessageDecoder<AddressedEnvelope<Object, InetSocketAddress>> {
 
-    private final ObjectDecoder delegateDecoder;
+    private final NetworkMessageDecoder delegateDecoder;
 
     public DatagramPacketObjectDecoder(ClassResolver resolver) {
         this(resolver, Integer.MAX_VALUE);
     }
 
     public DatagramPacketObjectDecoder(ClassResolver resolver, int maxObjectSize) {
-        delegateDecoder = new ObjectDecoder(maxObjectSize, resolver);
+        delegateDecoder = new NetworkMessageDecoder(maxObjectSize, resolver);
     }
 
     @Override

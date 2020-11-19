@@ -12,10 +12,14 @@ import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.tlf.monkeynetty.*;
 import io.tlf.monkeynetty.msg.NetworkMessage;
 import io.tlf.monkeynetty.msg.UdpConHashMessage;
 
+import java.io.File;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.logging.Level;
@@ -44,13 +48,34 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     private EventLoopGroup udpMsgGroup;
     private ServerBootstrap udpServer;
     private ChannelFuture udpFuture;
+    private SslContext sslContext;
 
     private final String service;
     private final int port;
+    private boolean ssl;
+    private boolean selfGenCert;
+    private File cert;
+    private File key;
 
     public NettyServer(String service, int port) {
+        this(service, false, port);
+    }
+
+    public NettyServer(String service, boolean ssl, int port) {
+        this(service, ssl, true, null, null, port);
+    }
+
+    public NettyServer(String service, boolean ssl, File cert, File key, int port) {
+        this(service, ssl, false, cert, key, port);
+    }
+
+    private NettyServer(String service, boolean ssl, boolean selfGenCert, File cert, File key, int port) {
         this.service = service;
         this.port = port;
+        this.ssl = ssl;
+        this.cert = cert;
+        this.key = key;
+        this.selfGenCert = selfGenCert;
     }
 
     @Override
@@ -63,15 +88,15 @@ public class NettyServer extends BaseAppState implements NetworkServer {
 
     }
 
+    @Override
     public void onEnable() {
         LOGGER.log(Level.INFO, "Loading Netty.IO Server {0} on port {1,number,#}", new Object[]{getService(), getPort()});
-
         setupTcp();
         setupUdp();
-
         LOGGER.log(Level.INFO, "Server {0} running on port {1,number,#}", new Object[]{getService(), getPort()});
     }
 
+    @Override
     public void onDisable() {
         LOGGER.log(Level.INFO, "Unloading Netty.IO Server {0} on port {1,number,#}", new Object[]{getService(), getPort()});
 
@@ -110,17 +135,13 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         this.maxConnections = maxConnections;
     }
 
-    public void setLogLevel(LogLevel logLevel) {
-        this.logLevel = logLevel;
-    }
-
-    @Override
-    public void receive(NetworkClient client) {
+    private void receive(NetworkClient client) {
         if (isBlocking() || getConnections() >= getMaxConnections() || !(client instanceof NettyConnection)) {
             client.disconnect();
             LOGGER.log(Level.INFO, "Server rejected connection from {0}", client.getAddress());
         } else {
             if (udpClients.containsValue(client)) {
+                //Run listeners
                 ((NettyConnection) client).connect();
                 LOGGER.log(Level.INFO, "Connection received from {0}", client.getAddress());
                 try {
@@ -141,8 +162,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         }
     }
 
-    @Override
-    public void receive(NetworkClient client, NetworkMessage message) {
+    private void receive(NetworkClient client, NetworkMessage message) {
         client.receive(message);
         for (MessageListener handler : messageListeners) {
             for (Class a : handler.getSupportedMessages()) {
@@ -180,11 +200,36 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     }
 
     @Override
+    public boolean isSsl() {
+        return ssl;
+    }
+
+    @Override
     public NetworkProtocol[] getProtocol() {
         return new NetworkProtocol[]{NetworkProtocol.UDP, NetworkProtocol.TCP};
     }
 
+    public void setLogLevel(LogLevel logLevel) {
+        this.logLevel = logLevel;
+    }
+    
     private void setupTcp() {
+        //Setup ssl
+        if (ssl) {
+            try {
+                if (selfGenCert) {
+                    LOGGER.log(Level.WARNING, "No SSL cert or key provided, using self signed certificate");
+                    SelfSignedCertificate ssc = new SelfSignedCertificate();
+                    cert = ssc.certificate();
+                    key = ssc.privateKey();
+                }
+                sslContext = SslContextBuilder.forServer(cert, key).build();
+            } catch (Exception ex) {
+                LOGGER.log(Level.WARNING, "Failed to load ssl, failing back to no ssl", ex);
+                ssl = false;
+            }
+        }
+        //Setup tcp socket
         try {
             tcpConGroup = new NioEventLoopGroup();
             tcpMsgGroup = new NioEventLoopGroup();
@@ -223,13 +268,19 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                     LOGGER.log(Level.WARNING, "Exception thrown running connection listeners", ex);
                                 }
                             });
+
+                            //Setup ssl
+                            if (ssl) {
+                                p.addLast(sslContext.newHandler(ch.alloc()));
+                            }
+
                             //Setup pipeline
                             if (logLevel != null) {
                                 p.addLast(new LoggingHandler(logLevel));
                             }
                             p.addLast(
-                                    new ObjectEncoder(),
-                                    new ObjectDecoder(Integer.MAX_VALUE, ClassResolvers.softCachingResolver(null)),
+                                    new NetworkMessageEncoder(),
+                                    new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.softCachingResolver(null)),
                                     new ChannelInboundHandlerAdapter() {
                                         @Override
                                         public void channelRead(ChannelHandlerContext ctx, Object msg) {
@@ -282,8 +333,8 @@ public class NettyServer extends BaseAppState implements NetworkServer {
 
                             //Setup pipeline
                             p.addLast(
-                                    new ObjectEncoder(),
-                                    new ObjectDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
+                                    new NetworkMessageEncoder(),
+                                    new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
                                     new ChannelInboundHandlerAdapter() {
                                         @Override
                                         public void channelRead(ChannelHandlerContext ctx, Object msg) {
@@ -333,22 +384,32 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         //The client disconnected unexpectedly, we can ignore.
     }
 
+    @Override
     public void registerListener(MessageListener handler) {
         messageListeners.add(handler);
     }
 
+    @Override
     public void unregisterListener(MessageListener handler) {
         messageListeners.remove(handler);
     }
 
+    @Override
     public void registerListener(ConnectionListener listener) {
         connectionListeners.add(listener);
     }
 
+    @Override
     public void unregisterListener(ConnectionListener listener) {
         connectionListeners.remove(listener);
     }
 
+    /**
+     * Generates a base64 like hash
+     *
+     * @param len The number of characters to generate in the hash
+     * @return The generated base64 like hash
+     */
     private String getUdpHash(int len) {
         String SALTCHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#$%^&*()_+-=[]{};':\",.<>/?\\";
         StringBuilder salt = new StringBuilder();

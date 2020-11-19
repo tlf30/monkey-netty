@@ -27,6 +27,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Random;
 
 /**
  * @author Radosław K <oxplay.net@gmail.com>
@@ -43,6 +44,7 @@ public class TestSerializableDataB implements Serializable {
     public TestSerializableDataB() {
         map.put("test1", 12);
         map.put("test2", "TestString");
+        map.put("test2", "TestVal" + (new Random().nextFloat() * 1000));
         map.put("test3", new int[]{34,3245,534543,2233});
         map.put("test4", new ArrayList<>(Arrays.asList("TestValue1", "TestValue2", "TestValue3")));
     }

@@ -1,3 +1,27 @@
+/*
+MIT License
+
+Copyright (c) 2020 Trevor Flynn
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
 package io.tlf.monkeynetty.client;
 
 import com.jme3.app.Application;
@@ -20,8 +44,11 @@ import io.netty.handler.logging.LoggingHandler;
 import io.tlf.monkeynetty.ConnectionListener;
 import io.tlf.monkeynetty.NetworkClient;
 import io.tlf.monkeynetty.MessageListener;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import io.tlf.monkeynetty.*;
 import io.tlf.monkeynetty.msg.NetworkMessage;
-import io.tlf.monkeynetty.NetworkProtocol;
 import io.tlf.monkeynetty.msg.UdpConHashMessage;
 
 import java.net.InetSocketAddress;
@@ -31,6 +58,9 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+/**
+ * @author Trevor Flynn trevorflynn@liquidcrystalstudios.com
+ */
 public class NettyClient extends BaseAppState implements NetworkClient {
 
     private final static Logger LOGGER = Logger.getLogger(NettyClient.class.getName());
@@ -38,6 +68,8 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     protected String service;
     protected int port;
     protected String server;
+    protected boolean ssl;
+    protected boolean sslSelfSigned;
     protected volatile boolean reconnect = false;
     /*
     * Connection timeout in milliseconds used when client is unable connect to server
@@ -55,15 +87,26 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     private Bootstrap udpClientBootstrap = new Bootstrap();
     private ChannelFuture udpChannelFuture;
     private DatagramChannel udpChannel;
+    private SslContext sslContext;
 
     private final HashSet<MessageListener> handlers = new HashSet<>();
     private final Set<ConnectionListener> listeners = Collections.synchronizedSet(new HashSet<>());
     private final Object handlerLock = new Object();
 
     public NettyClient(String service, int port, String server) {
+        this(service, false, false, port, server);
+    }
+
+    public NettyClient(String service, boolean ssl, int port, String server) {
+        this(service, ssl, true, port, server);
+    }
+
+    public NettyClient(String service, boolean ssl, boolean sslSelfSigned, int port, String server) {
         this.service = service;
         this.port = port;
         this.server = server;
+        this.ssl = ssl;
+        this.sslSelfSigned = sslSelfSigned;
     }
     
     @Override
@@ -100,6 +143,19 @@ public class NettyClient extends BaseAppState implements NetworkClient {
 
     private void setupTcp() {
         LOGGER.fine("Setting up tcp");
+        if (ssl) {
+            try {
+                if (sslSelfSigned) {
+                    sslContext = SslContextBuilder.forClient()
+                            .trustManager(InsecureTrustManagerFactory.INSTANCE).build();
+                } else {
+                    sslContext = SslContextBuilder.forClient().build();
+                }
+            } catch (Exception ex) {
+                LOGGER.log(Level.WARNING, "Failed to load ssl, failing back to no ssl", ex);
+                ssl = false;
+            }
+        }
         //Setup TCP
         tcpGroup = new NioEventLoopGroup();
         tcpClientBootstrap = new Bootstrap();
@@ -111,23 +167,27 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                 tcpChannel = socketChannel;
                 SocketChannelConfig cfg = tcpChannel.config();
                 cfg.setConnectTimeoutMillis(connectionTimeout);
-                //Setup pipeline
+
                 ChannelPipeline p = socketChannel.pipeline();
+                //Setup ssl
+                if (ssl) {
+                    p.addLast(sslContext.newHandler(socketChannel.alloc(), server, port));
+                }
+                //Set log level
                 if (logLevel != null) {
                     p.addLast(new LoggingHandler(logLevel));
                 }
+                //Setup pipeline
                 p.addLast(
-                        new ObjectEncoder(),
-                        new ObjectDecoder(Integer.MAX_VALUE, ClassResolvers.softCachingResolver(null)),
+                        new NetworkMessageEncoder(),
+                        new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.softCachingResolver(null)),
                         new ChannelInboundHandlerAdapter() {
                             @Override
                             public void channelRead(ChannelHandlerContext ctx, Object msg) {
                                 if (msg instanceof UdpConHashMessage) {
                                     String hash = ((UdpConHashMessage) msg).getUdpHash();
                                     setupUdp(hash);
-                                    return;
-                                }
-                                if (msg instanceof NetworkMessage) {
+                                } else if (msg instanceof NetworkMessage) {
                                     receive((NetworkMessage) msg);
                                 } else {
                                     LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
@@ -172,7 +232,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                 //Setup pipeline
                 ChannelPipeline p = socketChannel.pipeline();
                 p.addLast(
-                        new ObjectEncoder(),
+                        new NetworkMessageEncoder(),
                         new DatagramPacketObjectDecoder(ClassResolvers.cacheDisabled(null)),
                         new ChannelInboundHandlerAdapter() {
                             @Override
@@ -313,6 +373,11 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     @Override
     public String getService() {
         return service;
+    }
+
+    @Override
+    public boolean isSsl() {
+        return ssl;
     }
 
     @Override

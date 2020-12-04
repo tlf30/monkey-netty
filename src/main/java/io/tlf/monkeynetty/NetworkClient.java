@@ -112,4 +112,19 @@ public interface NetworkClient {
      * @param listener The connection listener to unregister
      */
     public void unregisterListener(ConnectionListener listener);
+    
+    /**
+     * Set obj value attribute for key param
+     *
+     * @param key key for attribute
+     * @param obj value object for attribute
+     */
+    public void setAttribute(String key, Object obj);
+
+    /**
+     * Return attribute stored under key param
+     *
+     * @param key key for attribute
+     */
+    public Object getAttribute(String key);
 }

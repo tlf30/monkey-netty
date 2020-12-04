@@ -159,21 +159,25 @@ public class NettyConnection implements NetworkClient {
     public String getAddress() {
         return getAttribute("address").toString();
     }
-
+    
+    @Override
     public void setAttribute(String key, Object obj) {
         atts.put(key, obj);
     }
 
+    @Override
     public Object getAttribute(String key) {
         return atts.get(key);
     }
 
+    @Override
     public void registerListener(MessageListener handler) {
         synchronized (handlerLock) {
             handlers.add(handler);
         }
     }
 
+    @Override
     public void unregisterListener(MessageListener handler) {
         synchronized (handlerLock) {
             handlers.remove(handler);

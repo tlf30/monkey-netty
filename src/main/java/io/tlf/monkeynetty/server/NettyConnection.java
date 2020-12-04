@@ -171,6 +171,11 @@ public class NettyConnection implements NetworkClient {
     }
 
     @Override
+    public <T> T getAttribute(String key, Class<T> castClass) {
+        return (T) atts.get(key);
+    }
+    
+    @Override
     public void registerListener(MessageListener handler) {
         synchronized (handlerLock) {
             handlers.add(handler);

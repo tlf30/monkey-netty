@@ -242,7 +242,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                             ChannelPipeline p = ch.pipeline();
                             NettyConnection client = new NettyConnection(NettyServer.this);
                             client.setTcp(ch);
-                            client.setAttribute("address", ch.remoteAddress());
+                            client.setUserData("address", ch.remoteAddress());
                             tcpClients.put(ch, client);
 
                             //Disconnect client listener

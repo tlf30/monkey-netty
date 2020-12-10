@@ -48,6 +48,7 @@ import io.tlf.monkeynetty.msg.UdpConHashMessage;
 
 import java.net.InetSocketAddress;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.logging.Level;
@@ -61,7 +62,8 @@ import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
 public class NettyClient extends BaseAppState implements NetworkClient {
 
     private final static Logger LOGGER = Logger.getLogger(NettyClient.class.getName());
-
+    private final HashMap<String, Object> atts = new HashMap<>();
+    
     protected String service;
     protected int port;
     protected String server;
@@ -429,5 +431,15 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     @Override
     public void unregisterListener(ConnectionListener listener) {
         listeners.remove(listener);
+    }
+
+    @Override
+    public void setUserData(String key, Object obj) {
+        atts.put(key, obj);
+    }
+
+    @Override
+    public <T> T getUserData(String key) {
+        return (T) atts.get(key);
     }
 }

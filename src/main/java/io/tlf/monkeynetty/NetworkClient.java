@@ -119,22 +119,15 @@ public interface NetworkClient {
      * @param key key for attribute
      * @param obj value object for attribute
      */
-    public void setAttribute(String key, Object obj);
+    public void setUserData(String key, Object obj);
 
     /**
      * Return attribute stored under key param
      *
+     * @param <T> type
      * @param key key for attribute
+     * @return object casted to T type
      */
-    public Object getAttribute(String key);
-    
-    /**
-     * Return attribute stored under key param
-     *
-     * @param <T> type of castClass
-     * @param key key for attribute
-     * @param castClass the class that value object will be casted to
-     * @return casted object value
-     */
-    public <T> T getAttribute(String key, Class<T> castClass);
+    public <T> T getUserData(String key);
+
 }

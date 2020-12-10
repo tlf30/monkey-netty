@@ -434,17 +434,12 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     }
 
     @Override
-    public void setAttribute(String key, Object obj) {
+    public void setUserData(String key, Object obj) {
         atts.put(key, obj);
     }
 
     @Override
-    public Object getAttribute(String key) {
-        return atts.get(key);
-    }
-    
-    @Override
-    public <T> T getAttribute(String key, Class<T> castClass) {
+    public <T> T getUserData(String key) {
         return (T) atts.get(key);
     }
 }

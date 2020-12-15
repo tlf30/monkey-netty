@@ -34,6 +34,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     private final Map<Channel, NettyConnection> tcpClients = Collections.synchronizedMap(new HashMap<>());
     private final Map<Channel, NettyConnection> udpClients = Collections.synchronizedMap(new HashMap<>());
     private final Map<String, NettyConnection> secrets = Collections.synchronizedMap(new HashMap<>());
+    private final Map<NetworkClient, LinkedList<NetworkMessage>> pendingConnections = Collections.synchronizedMap(new HashMap<>());
 
     private int maxConnections = 10;
     private boolean blocking = false;
@@ -148,6 +149,11 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                     for (ConnectionListener listener : connectionListeners) {
                         listener.onConnect(client);
                     }
+                    LinkedList<NetworkMessage> cachedMessages = pendingConnections.get(client);
+                    while (cachedMessages.size() > 0) {
+                        receive(client, cachedMessages.removeFirst());
+                    }
+                    pendingConnections.remove(client);
                 } catch (Exception ex) {
                     LOGGER.log(Level.WARNING, "Exception thrown running connection listeners", ex);
                 }
@@ -244,6 +250,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                             client.setTcp(ch);
                             client.setUserData("address", ch.remoteAddress());
                             tcpClients.put(ch, client);
+                            pendingConnections.put(client, new LinkedList<>());
 
                             //Disconnect client listener
                             ch.closeFuture().addListener((ChannelFutureListener) future -> {
@@ -285,7 +292,12 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                         @Override
                                         public void channelRead(ChannelHandlerContext ctx, Object msg) {
                                             if (msg instanceof NetworkMessage) {
-                                                receive(tcpClients.get(ctx.channel()), (NetworkMessage) msg);
+                                                NettyConnection conn = tcpClients.get(ctx.channel());
+                                                if (!pendingConnections.containsKey(conn)) {
+                                                    receive(conn, (NetworkMessage) msg);
+                                                } else {
+                                                    pendingConnections.get(conn).push((NetworkMessage) msg);
+                                                }
                                             } else {
                                                 LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
                                             }
@@ -355,7 +367,12 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                                 return;
                                             }
                                             if (msg instanceof NetworkMessage) {
-                                                receive(udpClients.get(ctx.channel()), (NetworkMessage) msg);
+                                                NettyConnection conn = udpClients.get(ctx.channel());
+                                                if (!pendingConnections.containsKey(conn)) {
+                                                    receive(conn, (NetworkMessage) msg);
+                                                } else {
+                                                    pendingConnections.get(conn).push((NetworkMessage) msg);
+                                                }
                                             } else {
                                                 LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
                                             }

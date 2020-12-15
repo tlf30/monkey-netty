@@ -54,7 +54,7 @@ public class NettyConnection implements NetworkClient {
     private SocketChannel tcpConn;
     private UdpChannel udpConn;
     private final NetworkServer server;
-    private boolean connected = true;
+    private boolean connected = false;
     private final HashSet<MessageListener> handlers = new HashSet<>();
     private final Object handlerLock = new Object();
     private final Set<ConnectionListener> listeners = Collections.synchronizedSet(new HashSet<>());
@@ -73,12 +73,24 @@ public class NettyConnection implements NetworkClient {
         tcpConn = conn;
     }
 
+    /**
+     * Run all connection listeners on client.
+     * The client will be flagged as connected upon the completion
+     * of running all connection listeners.
+     */
     protected void connect() {
         for (ConnectionListener listener : listeners) {
             listener.onConnect(this);
         }
+        connected = true;
     }
 
+    /**
+     * The client will be connected once all connection listeners
+     * have been run specific to the client, and the client is connected
+     * to the remote client endpoint.
+     * @return If the client is connected
+     */
     @Override
     public boolean isConnected() {
         return connected;

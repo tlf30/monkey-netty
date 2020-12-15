@@ -45,9 +45,11 @@ import io.tlf.monkeynetty.test.messages.TestUDPBigMessageB;
  */
 public class JmeClient extends SimpleApplication {
 
+    NettyClient client;
+
     @Override
     public void simpleInitApp() {
-        NettyClient client = new NettyClient("test", true, 10000, "localhost");
+         client = new NettyClient("test", true, 10000, "localhost");
         stateManager.attach(client);
         client.registerListener(new MessageListener() {
             @Override
@@ -99,12 +101,18 @@ public class JmeClient extends SimpleApplication {
         }, "key4");
     }
 
+    int frame = 0;
+
     @Override
     public void simpleUpdate(float tpf) {
-
+        if (frame < 10) {
+            client.send(new TestTCPMessage());
+            frame++;
+        }
     }
 
     public static void main(String[] args) {
+
         JmeClient client = new JmeClient();
         client.start();
     }

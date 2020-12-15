@@ -47,10 +47,7 @@ import io.tlf.monkeynetty.msg.NetworkMessage;
 import io.tlf.monkeynetty.msg.UdpConHashMessage;
 
 import java.net.InetSocketAddress;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -63,18 +60,20 @@ public class NettyClient extends BaseAppState implements NetworkClient {
 
     private final static Logger LOGGER = Logger.getLogger(NettyClient.class.getName());
     private final HashMap<String, Object> atts = new HashMap<>();
-    
+
     protected String service;
     protected int port;
     protected String server;
     protected boolean ssl;
     protected boolean sslSelfSigned;
     protected volatile boolean reconnect = false;
+    protected volatile boolean handshakeComplete = false;
     /*
-    * Connection timeout in milliseconds used when client is unable connect to server
-    * Note: Currently it do not apply when server is "off"
-    */
+     * Connection timeout in milliseconds used when client is unable connect to server
+     * Note: Currently it do not apply when server is "off"
+     */
     protected int connectionTimeout = 10000;
+    protected MessageCacheMode cacheMode = MessageCacheMode.TCP_ENABLED;
     private LogLevel logLevel;
 
     //Netty
@@ -91,6 +90,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     private final HashSet<MessageListener> handlers = new HashSet<>();
     private final Set<ConnectionListener> listeners = Collections.synchronizedSet(new HashSet<>());
     private final Object handlerLock = new Object();
+    private final LinkedList<NetworkMessage> messageCache = new LinkedList<>();
 
     public NettyClient(String service, int port, String server) {
         this(service, false, false, port, server);
@@ -138,6 +138,14 @@ public class NettyClient extends BaseAppState implements NetworkClient {
 
     public void setLogLevel(LogLevel logLevel) {
         this.logLevel = logLevel;
+    }
+
+    public void setMessageCacheMode(MessageCacheMode mode) {
+        this.cacheMode = mode;
+    }
+
+    public MessageCacheMode getMessageCacheMode() {
+        return cacheMode;
     }
 
     private void setupTcp() {
@@ -266,16 +274,17 @@ public class NettyClient extends BaseAppState implements NetworkClient {
             LOGGER.fine("Making udp connection");
             udpChannelFuture = udpClientBootstrap.connect().sync();
             LOGGER.fine("Udp future synced");
-            send(new UdpConHashMessage(hash, false));
+            send(new UdpConHashMessage(hash, false), false);
 
             //Notify that we have completed the connection process
-            try {
-                for (ConnectionListener listener : listeners) {
+            for (ConnectionListener listener : listeners) {
+                try {
                     listener.onConnect(NettyClient.this);
+                } catch (Exception ex) {
+                    Logger.getLogger(NettyClient.class.getName()).log(Level.SEVERE, null, ex);
                 }
-            } catch (Exception ex) {
-                Logger.getLogger(NettyClient.class.getName()).log(Level.SEVERE, null, ex);
             }
+            handshakeComplete = true;
 
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Failed to setup udp connection");
@@ -320,21 +329,43 @@ public class NettyClient extends BaseAppState implements NetworkClient {
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, "Failed to setup tcp connection", e);
                 reconnect = true;
+                handshakeComplete = false;
             }
 
             if (isConnected()) {
                 LOGGER.info("Network client reconnected to server");
             }
         }
+        if (messageCache.size() > 0) {
+            LOGGER.finest("Sending cached messages");
+            while (messageCache.size() > 0 && isConnected()) {
+                send(messageCache.removeFirst());
+            }
+            LOGGER.finest("Done sending cached messages");
+        }
     }
 
     @Override
     public boolean isConnected() {
-        return tcpChannel != null && tcpChannel.isOpen();
+        return tcpChannel != null && tcpChannel.isOpen() && handshakeComplete;
     }
 
     @Override
     public void send(NetworkMessage message) {
+        send(message, true);
+    }
+
+    private void send(NetworkMessage message, boolean enableCache) {
+        if (!isConnected() && enableCache) {
+            if (cacheMode == MessageCacheMode.ENABLED) {
+                messageCache.push(message);
+            } else if (cacheMode == MessageCacheMode.TCP_ENABLED && message.getProtocol() == NetworkProtocol.TCP) {
+                messageCache.push(message);
+            } else if (cacheMode == MessageCacheMode.UDP_ENABLED && message.getProtocol() == NetworkProtocol.UDP) {
+                messageCache.push(message);
+            }
+            return;
+        }
         try {
             if (message.getProtocol() == NetworkProtocol.TCP) {
                 ChannelFuture future = tcpChannel.writeAndFlush(message);

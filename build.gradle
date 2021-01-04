@@ -1,5 +1,5 @@
 plugins {
-	id 'java'
+    id 'java-library'
     id 'maven-publish'
 }
 
@@ -39,14 +39,11 @@ publishing {
 
 dependencies {
 	//Jme3
-    implementation jmeGroup + ':jme3-core:' + jmeVersion
-    implementation jmeGroup + ':jme3-desktop:' + jmeVersion
-    implementation jmeGroup + ':jme3-lwjgl3:' + jmeVersion
+    api jmeGroup + ':jme3-core:' + jmeVersion
     //Netty.IO
-    compile group: 'io.netty', name: 'netty-all', version: nettyioVersion
-    compile group: 'io.netty', name: 'netty-transport', version: nettyioVersion
+    implementation group: 'io.netty', name: 'netty-all', version: nettyioVersion
+    implementation group: 'io.netty', name: 'netty-transport', version: nettyioVersion
 }
-
 
 
 

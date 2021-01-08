@@ -43,6 +43,9 @@ dependencies {
     //Netty.IO
     implementation group: 'io.netty', name: 'netty-all', version: nettyioVersion
     implementation group: 'io.netty', name: 'netty-transport', version: nettyioVersion
+    // test
+    testImplementation jmeGroup + ':jme3-desktop:' + jmeVersion
+    testImplementation jmeGroup + ':jme3-lwjgl3:' + jmeVersion
 }
 
 

@@ -1,54 +1,18 @@
-plugins {
-    id 'java-library'
-    id 'maven-publish'
-}
+allprojects {
+    version = '0.1.0-SNAPSHOT'
+    group = "io.tlf.monkeynetty"
 
-version = '0.1.0-SNAPSHOT'
-group = "io.tlf.monkeynetty"
-ext {
-	//Dependency Versions
-	//jmeVersion = 'master-SNAPSHOT'
-	//jmeGroup = "com.github.jMonkeyEngine.jmonkeyengine";
-	jmeVersion = "3.3.0-stable"
-	jmeGroup = "org.jmonkeyengine"
-    nettyioVersion = "4.1.51.Final"
-}
+    ext {
+        //Dependency Versions
+        jmeVersion = "3.3.0-stable"
+        jmeGroup = "org.jmonkeyengine"
+        nettyioVersion = "4.1.51.Final"
+    }
 
-repositories {
-    mavenCentral()
-    jcenter()
-}
-
-publishing {
     repositories {
-        maven {
-            name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/tlf30/monkey-netty")
-            credentials {
-                username = System.getenv("GITHUB_ACTOR")
-                password = System.getenv("GITHUB_TOKEN")
-            }
-        }
-    }
-    publications {
-        gpr(MavenPublication) {
-            from(components.java)
-        }
+        mavenLocal()
+        mavenCentral()
+        jcenter()
     }
 }
-
-dependencies {
-	//Jme3
-    api jmeGroup + ':jme3-core:' + jmeVersion
-    //Netty.IO
-    implementation group: 'io.netty', name: 'netty-all', version: nettyioVersion
-    implementation group: 'io.netty', name: 'netty-transport', version: nettyioVersion
-    // test
-    testImplementation jmeGroup + ':jme3-desktop:' + jmeVersion
-    testImplementation jmeGroup + ':jme3-lwjgl3:' + jmeVersion
-}
-
-
-
-
 

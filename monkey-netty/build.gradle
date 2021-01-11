@@ -1,0 +1,38 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+}
+
+publishing {
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/tlf30/monkey-netty")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR")
+                password = System.getenv("GITHUB_TOKEN")
+            }
+        }
+    }
+    publications {
+        gpr(MavenPublication) {
+            from(components.java)
+        }
+    }
+}
+
+dependencies {
+    //Jme3
+    api jmeGroup + ':jme3-core:' + jmeVersion
+    //Netty.IO
+    api group: 'io.netty', name: 'netty-all', version: nettyioVersion
+    api group: 'io.netty', name: 'netty-transport', version: nettyioVersion
+    // io.tlf.monkeynetty.test
+    testImplementation jmeGroup + ':jme3-desktop:' + jmeVersion
+    testImplementation jmeGroup + ':jme3-lwjgl3:' + jmeVersion
+}
+
+
+
+
+

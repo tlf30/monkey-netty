@@ -24,6 +24,7 @@ SOFTWARE.
 
 package io.tlf.monkeynetty.test;
 
+import io.tlf.monkeynetty.ConnectionListener;
 import io.tlf.monkeynetty.test.messages.TestUDPBigMessageA;
 import io.tlf.monkeynetty.test.messages.TestTCPBigMessageA;
 import io.tlf.monkeynetty.test.messages.TestTCPMessage;
@@ -60,6 +61,18 @@ public class JmeClient extends SimpleApplication {
             @Override
             public Class<? extends NetworkMessage>[] getSupportedMessages() {
                 return new Class[] {TestTCPMessage.class, TestUDPMessage.class, TestTCPBigMessageA.class, TestTCPBigMessageB.class, TestUDPBigMessageA.class, TestUDPBigMessageB.class};
+            }
+        });
+
+        client.registerListener(new ConnectionListener() {
+            @Override
+            public void onConnect(NetworkClient client) {
+                client.send(new TestTCPMessage());
+            }
+
+            @Override
+            public void onDisconnect(NetworkClient client) {
+
             }
         });
         inputManager.addMapping("enter", new KeyTrigger(KeyInput.KEY_RETURN));

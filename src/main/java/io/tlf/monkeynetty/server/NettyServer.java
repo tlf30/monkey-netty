@@ -16,6 +16,7 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.tlf.monkeynetty.*;
+import io.tlf.monkeynetty.msg.ConnectionEstablishedMessage;
 import io.tlf.monkeynetty.msg.NetworkMessage;
 import io.tlf.monkeynetty.msg.UdpConHashMessage;
 
@@ -34,7 +35,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     private final Map<Channel, NettyConnection> tcpClients = Collections.synchronizedMap(new HashMap<>());
     private final Map<Channel, NettyConnection> udpClients = Collections.synchronizedMap(new HashMap<>());
     private final Map<String, NettyConnection> secrets = Collections.synchronizedMap(new HashMap<>());
-    private final Map<NetworkClient, LinkedList<NetworkMessage>> pendingConnections = Collections.synchronizedMap(new HashMap<>());
+    private final Set<NetworkClient> pendingConnections = Collections.synchronizedSet(new HashSet<>());
 
     private int maxConnections = 10;
     private boolean blocking = false;
@@ -149,10 +150,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                     for (ConnectionListener listener : connectionListeners) {
                         listener.onConnect(client);
                     }
-                    LinkedList<NetworkMessage> cachedMessages = pendingConnections.get(client);
-                    while (cachedMessages.size() > 0) {
-                        receive(client, cachedMessages.removeFirst());
-                    }
+                    client.send(new ConnectionEstablishedMessage());
                     pendingConnections.remove(client);
                 } catch (Exception ex) {
                     LOGGER.log(Level.WARNING, "Exception thrown running connection listeners", ex);
@@ -250,7 +248,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                             client.setTcp(ch);
                             client.setUserData("address", ch.remoteAddress());
                             tcpClients.put(ch, client);
-                            pendingConnections.put(client, new LinkedList<>());
+                            pendingConnections.add(client);
 
                             //Disconnect client listener
                             ch.closeFuture().addListener((ChannelFutureListener) future -> {
@@ -293,10 +291,10 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                         public void channelRead(ChannelHandlerContext ctx, Object msg) {
                                             if (msg instanceof NetworkMessage) {
                                                 NettyConnection conn = tcpClients.get(ctx.channel());
-                                                if (!pendingConnections.containsKey(conn)) {
+                                                if (!pendingConnections.contains(conn)) {
                                                     receive(conn, (NetworkMessage) msg);
                                                 } else {
-                                                    pendingConnections.get(conn).push((NetworkMessage) msg);
+                                                    LOGGER.fine("Rejected message " + ((NetworkMessage) msg).getName() + " from " + conn.getAddress() + ". Connection not fully established");
                                                 }
                                             } else {
                                                 LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
@@ -368,10 +366,10 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                             }
                                             if (msg instanceof NetworkMessage) {
                                                 NettyConnection conn = udpClients.get(ctx.channel());
-                                                if (!pendingConnections.containsKey(conn)) {
+                                                if (!pendingConnections.contains(conn)) {
                                                     receive(conn, (NetworkMessage) msg);
                                                 } else {
-                                                    pendingConnections.get(conn).push((NetworkMessage) msg);
+                                                    LOGGER.fine("Rejected message " + ((NetworkMessage) msg).getName() + " from " + conn.getAddress() + ". Connection not fully established");
                                                 }
                                             } else {
                                                 LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");

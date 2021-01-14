@@ -43,6 +43,7 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.tlf.monkeynetty.*;
+import io.tlf.monkeynetty.msg.ConnectionEstablishedMessage;
 import io.tlf.monkeynetty.msg.NetworkMessage;
 import io.tlf.monkeynetty.msg.UdpConHashMessage;
 
@@ -67,7 +68,8 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     protected boolean ssl;
     protected boolean sslSelfSigned;
     protected volatile boolean reconnect = false;
-    protected volatile boolean handshakeComplete = false;
+    protected volatile boolean udpHandshakeComplete = false;
+    private volatile boolean pendingEstablish = true;
     /*
      * Connection timeout in milliseconds used when client is unable connect to server
      * Note: Currently it do not apply when server is "off"
@@ -191,9 +193,11 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                         new ChannelInboundHandlerAdapter() {
                             @Override
                             public void channelRead(ChannelHandlerContext ctx, Object msg) {
-                                if (msg instanceof UdpConHashMessage) {
+                                if (!udpHandshakeComplete && msg instanceof UdpConHashMessage) {
                                     String hash = ((UdpConHashMessage) msg).getUdpHash();
                                     setupUdp(hash);
+                                } else if (pendingEstablish && msg instanceof ConnectionEstablishedMessage) {
+                                    completeConnection();
                                 } else if (msg instanceof NetworkMessage) {
                                     receive((NetworkMessage) msg);
                                 } else {
@@ -275,20 +279,23 @@ public class NettyClient extends BaseAppState implements NetworkClient {
             udpChannelFuture = udpClientBootstrap.connect().sync();
             LOGGER.fine("Udp future synced");
             send(new UdpConHashMessage(hash, false), false);
-
-            //Notify that we have completed the connection process
-            for (ConnectionListener listener : listeners) {
-                try {
-                    listener.onConnect(NettyClient.this);
-                } catch (Exception ex) {
-                    Logger.getLogger(NettyClient.class.getName()).log(Level.SEVERE, null, ex);
-                }
-            }
-            handshakeComplete = true;
-
+            udpHandshakeComplete = true;
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Failed to setup udp connection");
             catchNetworkError(e);
+        }
+    }
+
+    private void completeConnection() {
+        pendingEstablish = false;
+        LOGGER.log(Level.FINEST, "Connection established");
+        //Notify that we have completed the connection process
+        for (ConnectionListener listener : listeners) {
+            try {
+                listener.onConnect(NettyClient.this);
+            } catch (Exception ex) {
+                Logger.getLogger(NettyClient.class.getName()).log(Level.SEVERE, null, ex);
+            }
         }
     }
 
@@ -329,7 +336,8 @@ public class NettyClient extends BaseAppState implements NetworkClient {
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, "Failed to setup tcp connection", e);
                 reconnect = true;
-                handshakeComplete = false;
+                pendingEstablish = true;
+                udpHandshakeComplete = false;
             }
 
             if (isConnected()) {
@@ -347,7 +355,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
 
     @Override
     public boolean isConnected() {
-        return tcpChannel != null && tcpChannel.isOpen() && handshakeComplete;
+        return tcpChannel != null && tcpChannel.isOpen() && udpHandshakeComplete && !pendingEstablish;
     }
 
     @Override

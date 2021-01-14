@@ -1,0 +1,14 @@
+plugins {
+    id 'java'
+}
+
+dependencies {
+    implementation project(":monkey-netty")
+    implementation jmeGroup + ':jme3-desktop:' + jmeVersion
+    implementation jmeGroup + ':jme3-lwjgl3:' + jmeVersion
+}
+
+
+
+
+

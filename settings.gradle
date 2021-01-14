@@ -1,1 +1,3 @@
-rootProject.name = 'monkey-netty'
+rootProject.name = 'monkey-netty-root'
+include 'examples'
+include 'monkey-netty'

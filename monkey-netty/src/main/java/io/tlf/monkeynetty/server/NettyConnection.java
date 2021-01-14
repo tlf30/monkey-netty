@@ -31,7 +31,6 @@ import io.tlf.monkeynetty.ConnectionListener;
 import io.tlf.monkeynetty.NetworkClient;
 import io.tlf.monkeynetty.NetworkServer;
 import io.tlf.monkeynetty.MessageListener;
-import io.tlf.monkeynetty.client.NettyClient;
 import io.tlf.monkeynetty.msg.NetworkMessage;
 import io.tlf.monkeynetty.NetworkProtocol;
 
@@ -138,7 +137,7 @@ public class NettyConnection implements NetworkClient {
             } else {
                 future = udpConn.writeAndFlush(message);
             }
-            future.addListener(FIRE_EXCEPTION_ON_FAILURE);
+            future.addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
             future.addListener((ChannelFutureListener) future1 -> {
                 if (!future1.isSuccess()) {
                     if (!(future1.cause() instanceof ClosedChannelException)) {

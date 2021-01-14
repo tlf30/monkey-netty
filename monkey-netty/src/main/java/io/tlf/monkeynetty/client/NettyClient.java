@@ -65,17 +65,17 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     protected String service;
     protected int port;
     protected String server;
-    protected boolean ssl;
-    protected boolean sslSelfSigned;
-    protected volatile boolean reconnect = false;
-    protected volatile boolean udpHandshakeComplete = false;
+    private boolean ssl;
+    private boolean sslSelfSigned;
+    private volatile boolean reconnect = false;
+    private volatile boolean udpHandshakeComplete = false;
     private volatile boolean pendingEstablish = true;
     /*
      * Connection timeout in milliseconds used when client is unable connect to server
      * Note: Currently it do not apply when server is "off"
      */
-    protected int connectionTimeout = 10000;
-    protected MessageCacheMode cacheMode = MessageCacheMode.TCP_ENABLED;
+    private int connectionTimeout = 10000;
+    private MessageCacheMode cacheMode = MessageCacheMode.TCP_ENABLED;
     private LogLevel logLevel;
 
     //Netty
@@ -286,7 +286,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         }
     }
 
-    private void completeConnection() {
+    protected void completeConnection() {
         pendingEstablish = false;
         LOGGER.log(Level.FINEST, "Connection established");
         //Notify that we have completed the connection process

@@ -3,6 +3,11 @@ plugins {
     id 'maven-publish'
 }
 
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
+
 publishing {
     repositories {
         maven {
@@ -17,6 +22,29 @@ publishing {
     publications {
         gpr(MavenPublication) {
             from(components.java)
+            pom {
+                name = 'Monkey Netty'
+                description = 'A implementation of a server-client communication system for jMonkeyEngine using Netty.IO that utilizes both TCP and UDP communication.'
+                url = 'https://github.com/tlf30/monkey-netty'
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'https://opensource.org/licenses/MIT'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'tlf30'
+                        name = 'Trevor Flynn'
+                        email = 'liquidcrystalstudios@gmail.com'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:git://github.com/tlf30/monkey-netty.git'
+                    developerConnection = 'scm:git:ssh://tlf30/monkey-netty.git'
+                    url = 'https://github.com/tlf30/monkey-netty/'
+                }
+            }
         }
     }
 }

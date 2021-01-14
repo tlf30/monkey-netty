@@ -42,8 +42,12 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import io.netty.handler.timeout.IdleState;
+import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.IdleStateHandler;
 import io.tlf.monkeynetty.*;
 import io.tlf.monkeynetty.msg.NetworkMessage;
+import io.tlf.monkeynetty.msg.PingMessage;
 import io.tlf.monkeynetty.msg.UdpConHashMessage;
 
 import java.net.InetSocketAddress;
@@ -63,7 +67,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
 
     private final static Logger LOGGER = Logger.getLogger(NettyClient.class.getName());
     private final HashMap<String, Object> atts = new HashMap<>();
-    
+
     protected String service;
     protected int port;
     protected String server;
@@ -71,9 +75,9 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     protected boolean sslSelfSigned;
     protected volatile boolean reconnect = false;
     /*
-    * Connection timeout in milliseconds used when client is unable connect to server
-    * Note: Currently it do not apply when server is "off"
-    */
+     * Connection timeout in milliseconds used when client is unable connect to server
+     * Note: Currently it do not apply when server is "off"
+     */
     protected int connectionTimeout = 10000;
     private LogLevel logLevel;
 
@@ -203,7 +207,24 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                                 catchNetworkError(cause);
                                 ctx.close();
                             }
-                        });
+                        },
+                        new IdleStateHandler(30, 10, 0),
+                        new ChannelDuplexHandler() {
+                            @Override
+                            public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
+                                if (evt instanceof IdleStateEvent) {
+                                    IdleStateEvent e = (IdleStateEvent) evt;
+                                    if (e.state() == IdleState.READER_IDLE) {
+                                        LOGGER.info("Connection inactive");
+                                        LOGGER.fine("Queuing reconnect");
+                                        reconnect = true;
+                                    } else if (e.state() == IdleState.WRITER_IDLE) {
+                                        ctx.writeAndFlush(new PingMessage());
+                                    }
+                                }
+                            }
+                        }
+                );
             }
         });
         try {

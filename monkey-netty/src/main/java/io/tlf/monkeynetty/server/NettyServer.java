@@ -15,8 +15,12 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
+import io.netty.handler.timeout.IdleState;
+import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.IdleStateHandler;
 import io.tlf.monkeynetty.*;
 import io.tlf.monkeynetty.msg.NetworkMessage;
+import io.tlf.monkeynetty.msg.PingMessage;
 import io.tlf.monkeynetty.msg.UdpConHashMessage;
 
 import java.io.File;
@@ -301,7 +305,22 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                             catchNetworkError(cause);
                                             ctx.close();
                                         }
-                                    });
+                                    },
+                                    new IdleStateHandler(30, 10, 0),
+                                    new ChannelDuplexHandler() {
+                                        @Override
+                                        public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
+                                            if (evt instanceof IdleStateEvent) {
+                                                IdleStateEvent e = (IdleStateEvent) evt;
+                                                if (e.state() == IdleState.READER_IDLE) {
+                                                    ctx.close();
+                                                } else if (e.state() == IdleState.WRITER_IDLE) {
+                                                    ctx.writeAndFlush(new PingMessage());
+                                                }
+                                            }
+                                        }
+                                    }
+                            );
                             //Receive the client after comms are setup
                             receive(client);
                         }

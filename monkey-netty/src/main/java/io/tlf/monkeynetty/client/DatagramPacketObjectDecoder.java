@@ -22,13 +22,14 @@
  * SOFTWARE.
  */
 
-package io.netty.handler.codec.serialization;
+package io.tlf.monkeynetty.client;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.AddressedEnvelope;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.DefaultAddressedEnvelope;
 import io.netty.handler.codec.MessageToMessageDecoder;
+import io.netty.handler.codec.serialization.ClassResolver;
 import io.tlf.monkeynetty.NetworkMessageDecoder;
 
 import java.net.InetSocketAddress;

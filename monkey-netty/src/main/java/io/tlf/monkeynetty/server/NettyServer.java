@@ -1,3 +1,27 @@
+/*
+ * MIT License
+ *
+ * Copyright (c) 2021 Trevor Flynn
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 package io.tlf.monkeynetty.server;
 
 import com.jme3.app.Application;
@@ -19,6 +43,7 @@ import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
 import io.tlf.monkeynetty.*;
+import io.tlf.monkeynetty.msg.ConnectionEstablishedMessage;
 import io.tlf.monkeynetty.msg.NetworkMessage;
 import io.tlf.monkeynetty.msg.PingMessage;
 import io.tlf.monkeynetty.msg.UdpConHashMessage;
@@ -38,6 +63,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     private final Map<Channel, NettyConnection> tcpClients = Collections.synchronizedMap(new HashMap<>());
     private final Map<Channel, NettyConnection> udpClients = Collections.synchronizedMap(new HashMap<>());
     private final Map<String, NettyConnection> secrets = Collections.synchronizedMap(new HashMap<>());
+    private final Set<NetworkClient> pendingConnections = Collections.synchronizedSet(new HashSet<>());
 
     private int maxConnections = 10;
     private boolean blocking = false;
@@ -152,6 +178,8 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                     for (ConnectionListener listener : connectionListeners) {
                         listener.onConnect(client);
                     }
+                    client.send(new ConnectionEstablishedMessage());
+                    pendingConnections.remove(client);
                 } catch (Exception ex) {
                     LOGGER.log(Level.WARNING, "Exception thrown running connection listeners", ex);
                 }
@@ -248,6 +276,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                             client.setTcp(ch);
                             client.setUserData("address", ch.remoteAddress());
                             tcpClients.put(ch, client);
+                            pendingConnections.add(client);
 
                             //Disconnect client listener
                             ch.closeFuture().addListener((ChannelFutureListener) future -> {
@@ -289,7 +318,12 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                         @Override
                                         public void channelRead(ChannelHandlerContext ctx, Object msg) {
                                             if (msg instanceof NetworkMessage) {
-                                                receive(tcpClients.get(ctx.channel()), (NetworkMessage) msg);
+                                                NettyConnection conn = tcpClients.get(ctx.channel());
+                                                if (!pendingConnections.contains(conn)) {
+                                                    receive(conn, (NetworkMessage) msg);
+                                                } else {
+                                                    LOGGER.fine("Rejected message " + ((NetworkMessage) msg).getName() + " from " + conn.getAddress() + ". Connection not fully established");
+                                                }
                                             } else {
                                                 LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
                                             }
@@ -374,7 +408,12 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                                 return;
                                             }
                                             if (msg instanceof NetworkMessage) {
-                                                receive(udpClients.get(ctx.channel()), (NetworkMessage) msg);
+                                                NettyConnection conn = udpClients.get(ctx.channel());
+                                                if (!pendingConnections.contains(conn)) {
+                                                    receive(conn, (NetworkMessage) msg);
+                                                } else {
+                                                    LOGGER.fine("Rejected message " + ((NetworkMessage) msg).getName() + " from " + conn.getAddress() + ". Connection not fully established");
+                                                }
                                             } else {
                                                 LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
                                             }

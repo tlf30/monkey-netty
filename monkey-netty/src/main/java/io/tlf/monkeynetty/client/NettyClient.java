@@ -1,7 +1,7 @@
 /*
 MIT License
 
-Copyright (c) 2020 Trevor Flynn
+Copyright (c) 2021 Trevor Flynn
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -36,21 +36,22 @@ import io.netty.channel.socket.SocketChannelConfig;
 import io.netty.channel.socket.nio.NioDatagramChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.serialization.ClassResolvers;
-import io.netty.handler.codec.serialization.DatagramPacketObjectDecoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import io.netty.handler.timeout.IdleState;
+import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.IdleStateHandler;
 import io.tlf.monkeynetty.*;
+import io.tlf.monkeynetty.msg.ConnectionEstablishedMessage;
 import io.tlf.monkeynetty.msg.NetworkMessage;
+import io.tlf.monkeynetty.msg.PingMessage;
 import io.tlf.monkeynetty.msg.UdpConHashMessage;
 
 import java.net.InetSocketAddress;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -63,18 +64,23 @@ public class NettyClient extends BaseAppState implements NetworkClient {
 
     private final static Logger LOGGER = Logger.getLogger(NettyClient.class.getName());
     private final HashMap<String, Object> atts = new HashMap<>();
-    
+
     protected String service;
     protected int port;
     protected String server;
     protected boolean ssl;
     protected boolean sslSelfSigned;
     protected volatile boolean reconnect = false;
+    protected volatile boolean disconnecting = false;
+    private volatile boolean udpHandshakeComplete = false;
+    private volatile boolean pendingEstablish = true;
+
     /*
-    * Connection timeout in milliseconds used when client is unable connect to server
-    * Note: Currently it do not apply when server is "off"
-    */
+     * Connection timeout in milliseconds used when client is unable connect to server
+     * Note: Currently it do not apply when server is "off"
+     */
     protected int connectionTimeout = 10000;
+    private MessageCacheMode cacheMode = MessageCacheMode.TCP_ENABLED;
     private LogLevel logLevel;
 
     //Netty
@@ -91,6 +97,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     private final HashSet<MessageListener> handlers = new HashSet<>();
     private final Set<ConnectionListener> listeners = Collections.synchronizedSet(new HashSet<>());
     private final Object handlerLock = new Object();
+    private final LinkedList<NetworkMessage> messageCache = new LinkedList<>();
 
     public NettyClient(String service, int port, String server) {
         this(service, false, false, port, server);
@@ -140,6 +147,14 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         this.logLevel = logLevel;
     }
 
+    public void setMessageCacheMode(MessageCacheMode mode) {
+        this.cacheMode = mode;
+    }
+
+    public MessageCacheMode getMessageCacheMode() {
+        return cacheMode;
+    }
+
     private void setupTcp() {
         LOGGER.fine("Setting up tcp");
         if (ssl) {
@@ -183,9 +198,11 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                         new ChannelInboundHandlerAdapter() {
                             @Override
                             public void channelRead(ChannelHandlerContext ctx, Object msg) {
-                                if (msg instanceof UdpConHashMessage) {
+                                if (!udpHandshakeComplete && msg instanceof UdpConHashMessage) {
                                     String hash = ((UdpConHashMessage) msg).getUdpHash();
                                     setupUdp(hash);
+                                } else if (pendingEstablish && msg instanceof ConnectionEstablishedMessage) {
+                                    completeConnection();
                                 } else if (msg instanceof NetworkMessage) {
                                     receive((NetworkMessage) msg);
                                 } else {
@@ -203,7 +220,28 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                                 catchNetworkError(cause);
                                 ctx.close();
                             }
-                        });
+                        },
+                        new IdleStateHandler(30, 10, 0),
+                        new ChannelDuplexHandler() {
+                            @Override
+                            public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
+                                System.out.println("Got event: " + evt.getClass().getName());
+                                if (evt instanceof IdleStateEvent) {
+                                    System.out.println("Got idle state: " + ((IdleStateEvent) evt).state());
+                                    IdleStateEvent e = (IdleStateEvent) evt;
+                                    if (e.state() == IdleState.READER_IDLE) {
+                                        handleInactiveConnection();
+                                    } else if (e.state() == IdleState.WRITER_IDLE) {
+                                        ctx.writeAndFlush(new PingMessage());
+                                    }
+                                }
+                            }
+
+                            public void channelInactive(ChannelHandlerContext ctx) {
+                                handleInactiveConnection();
+                            }
+                        }
+                );
             }
         });
         try {
@@ -266,21 +304,34 @@ public class NettyClient extends BaseAppState implements NetworkClient {
             LOGGER.fine("Making udp connection");
             udpChannelFuture = udpClientBootstrap.connect().sync();
             LOGGER.fine("Udp future synced");
-            send(new UdpConHashMessage(hash, false));
-
-            //Notify that we have completed the connection process
-            try {
-                for (ConnectionListener listener : listeners) {
-                    listener.onConnect(NettyClient.this);
-                }
-            } catch (Exception ex) {
-                Logger.getLogger(NettyClient.class.getName()).log(Level.SEVERE, null, ex);
-            }
-
+            send(new UdpConHashMessage(hash, false), false);
+            udpHandshakeComplete = true;
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Failed to setup udp connection");
             catchNetworkError(e);
         }
+    }
+
+    protected void completeConnection() {
+        pendingEstablish = false;
+        LOGGER.log(Level.FINEST, "Connection established");
+        //Notify that we have completed the connection process
+        for (ConnectionListener listener : listeners) {
+            try {
+                listener.onConnect(NettyClient.this);
+            } catch (Exception ex) {
+                Logger.getLogger(NettyClient.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+    }
+
+    private void handleInactiveConnection() {
+        if (disconnecting) {
+            return; //We will ignore inactive connections when disconnecting as this will get triggered
+        }
+        LOGGER.info("Connection inactive");
+        LOGGER.fine("Queuing reconnect");
+        reconnect = true;
     }
 
     private void catchNetworkError(Throwable cause) {
@@ -303,6 +354,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
             LOGGER.info("Attempting to reconnect on loss of connection to server");
 
             //Attempt to reconnect
+            disconnecting = true; //Ignore channel inactive events
             try {
                 tcpChannel.close();
             } catch (Exception e) {
@@ -313,6 +365,8 @@ public class NettyClient extends BaseAppState implements NetworkClient {
             } catch (Exception e) {
                 //Don't care
             }
+            disconnecting = false;
+
             try {
                 LOGGER.fine("Making tcp connection");
                 tcpChannelFuture = tcpClientBootstrap.connect().sync();
@@ -320,21 +374,44 @@ public class NettyClient extends BaseAppState implements NetworkClient {
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, "Failed to setup tcp connection", e);
                 reconnect = true;
+                pendingEstablish = true;
+                udpHandshakeComplete = false;
             }
 
             if (isConnected()) {
                 LOGGER.info("Network client reconnected to server");
             }
         }
+        if (messageCache.size() > 0) {
+            LOGGER.finest("Sending cached messages");
+            while (messageCache.size() > 0 && isConnected()) {
+                send(messageCache.removeFirst());
+            }
+            LOGGER.finest("Done sending cached messages");
+        }
     }
 
     @Override
     public boolean isConnected() {
-        return tcpChannel != null && tcpChannel.isOpen();
+        return tcpChannel != null && tcpChannel.isOpen() && udpHandshakeComplete && !pendingEstablish;
     }
 
     @Override
     public void send(NetworkMessage message) {
+        send(message, true);
+    }
+
+    private void send(NetworkMessage message, boolean enableCache) {
+        if (!isConnected() && enableCache) {
+            if (cacheMode == MessageCacheMode.ENABLED) {
+                messageCache.push(message);
+            } else if (cacheMode == MessageCacheMode.TCP_ENABLED && message.getProtocol() == NetworkProtocol.TCP) {
+                messageCache.push(message);
+            } else if (cacheMode == MessageCacheMode.UDP_ENABLED && message.getProtocol() == NetworkProtocol.UDP) {
+                messageCache.push(message);
+            }
+            return;
+        }
         try {
             if (message.getProtocol() == NetworkProtocol.TCP) {
                 ChannelFuture future = tcpChannel.writeAndFlush(message);
@@ -350,6 +427,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
 
     @Override
     public void disconnect() {
+        disconnecting = true;
         try {
             for (ConnectionListener listener : listeners) {
                 listener.onDisconnect(this);
@@ -363,6 +441,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         } catch (Exception ex) {
             LOGGER.log(Level.SEVERE, null, ex);
         }
+        disconnecting = false;
     }
 
     @Override

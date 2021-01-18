@@ -212,16 +212,20 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                         new ChannelDuplexHandler() {
                             @Override
                             public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
+                                System.out.println("Got event: " + evt.getClass().getName());
                                 if (evt instanceof IdleStateEvent) {
+                                    System.out.println("Got idle state: " + ((IdleStateEvent) evt).state());
                                     IdleStateEvent e = (IdleStateEvent) evt;
                                     if (e.state() == IdleState.READER_IDLE) {
-                                        LOGGER.info("Connection inactive");
-                                        LOGGER.fine("Queuing reconnect");
-                                        reconnect = true;
+                                        handleInactiveConnection();
                                     } else if (e.state() == IdleState.WRITER_IDLE) {
                                         ctx.writeAndFlush(new PingMessage());
                                     }
                                 }
+                            }
+
+                            public void channelInactive(ChannelHandlerContext ctx) {
+                                handleInactiveConnection();
                             }
                         }
                 );
@@ -235,6 +239,12 @@ public class NettyClient extends BaseAppState implements NetworkClient {
             LOGGER.log(Level.SEVERE, "Failed to setup tcp connection");
             catchNetworkError(e);
         }
+    }
+
+    private void handleInactiveConnection() {
+        LOGGER.info("Connection inactive");
+        LOGGER.fine("Queuing reconnect");
+        reconnect = true;
     }
 
     private void setupUdp(String hash) {

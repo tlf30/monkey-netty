@@ -74,6 +74,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     protected boolean ssl;
     protected boolean sslSelfSigned;
     protected volatile boolean reconnect = false;
+    protected volatile boolean disconnecting = false;
     /*
      * Connection timeout in milliseconds used when client is unable connect to server
      * Note: Currently it do not apply when server is "off"
@@ -241,12 +242,6 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         }
     }
 
-    private void handleInactiveConnection() {
-        LOGGER.info("Connection inactive");
-        LOGGER.fine("Queuing reconnect");
-        reconnect = true;
-    }
-
     private void setupUdp(String hash) {
         LOGGER.fine("Setting up udp");
         udpGroup = new NioEventLoopGroup();
@@ -314,6 +309,15 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         }
     }
 
+    private void handleInactiveConnection() {
+        if (disconnecting) {
+            return; //We will ignore inactive connections when disconnecting as this will get triggered
+        }
+        LOGGER.info("Connection inactive");
+        LOGGER.fine("Queuing reconnect");
+        reconnect = true;
+    }
+
     private void catchNetworkError(Throwable cause) {
         //if (cause instanceof java.net.SocketException) {
         //The server disconnected unexpectedly, we will not log it.
@@ -334,6 +338,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
             LOGGER.info("Attempting to reconnect on loss of connection to server");
 
             //Attempt to reconnect
+            disconnecting = true; //Ignore channel inactive events
             try {
                 tcpChannel.close();
             } catch (Exception e) {
@@ -344,6 +349,8 @@ public class NettyClient extends BaseAppState implements NetworkClient {
             } catch (Exception e) {
                 //Don't care
             }
+            disconnecting = false;
+
             try {
                 LOGGER.fine("Making tcp connection");
                 tcpChannelFuture = tcpClientBootstrap.connect().sync();
@@ -381,6 +388,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
 
     @Override
     public void disconnect() {
+        disconnecting = true;
         try {
             for (ConnectionListener listener : listeners) {
                 listener.onDisconnect(this);
@@ -394,6 +402,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         } catch (Exception ex) {
             LOGGER.log(Level.SEVERE, null, ex);
         }
+        disconnecting = false;
     }
 
     @Override

@@ -225,9 +225,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                         new ChannelDuplexHandler() {
                             @Override
                             public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
-                                System.out.println("Got event: " + evt.getClass().getName());
                                 if (evt instanceof IdleStateEvent) {
-                                    System.out.println("Got idle state: " + ((IdleStateEvent) evt).state());
                                     IdleStateEvent e = (IdleStateEvent) evt;
                                     if (e.state() == IdleState.READER_IDLE) {
                                         handleInactiveConnection();

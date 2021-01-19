@@ -284,6 +284,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                                 } else {
                                     LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
                                 }
+                                ctx.fireChannelRead(netObj);
                             }
 
                             @Override

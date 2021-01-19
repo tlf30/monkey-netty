@@ -403,12 +403,14 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                                 NettyConnection client = secrets.get(((UdpConHashMessage) msg).getUdpHash());
                                                 if (client == null) {
                                                     ctx.close();
+                                                    //Do not pass the message on, we are forcibly disconnecting the client
                                                     return;
                                                 }
                                                 secrets.remove(((UdpConHashMessage) msg).getUdpHash());
                                                 client.setUdp((UdpChannel) ctx.channel());
                                                 udpClients.put(ctx.channel(), client);
                                                 receive(client);
+                                                ctx.fireChannelRead(msg);
                                                 return;
                                             }
                                             if (msg instanceof NetworkMessage) {
@@ -421,6 +423,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                             } else {
                                                 LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
                                             }
+                                            ctx.fireChannelRead(msg);
                                         }
 
                                         @Override

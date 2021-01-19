@@ -277,12 +277,15 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                         new ChannelInboundHandlerAdapter() {
                             @Override
                             public void channelRead(ChannelHandlerContext ctx, Object netObj) {
-                                AddressedEnvelope<Object, InetSocketAddress> envelope = (AddressedEnvelope<Object, InetSocketAddress>) netObj;
-                                Object msg = envelope.content();
-                                if (msg instanceof NetworkMessage) {
-                                    receive((NetworkMessage) msg);
-                                } else {
-                                    LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
+                                if (netObj instanceof AddressedEnvelope) {
+                                    //We don't care about the envelope type, only the object within if it is a NetworkMessage
+                                    AddressedEnvelope<?, ?> envelope = (AddressedEnvelope<?, ?>) netObj;
+                                    Object msg = envelope.content();
+                                    if (msg instanceof NetworkMessage) {
+                                        receive((NetworkMessage) msg);
+                                    } else {
+                                        LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
+                                    }
                                 }
                                 ctx.fireChannelRead(netObj);
                             }

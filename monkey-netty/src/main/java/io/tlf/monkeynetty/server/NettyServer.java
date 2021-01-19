@@ -194,7 +194,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     private void receive(NetworkClient client, NetworkMessage message) {
         client.receive(message);
         for (MessageListener handler : messageListeners) {
-            for (Class a : handler.getSupportedMessages()) {
+            for (Class<? extends NetworkMessage> a : handler.getSupportedMessages()) {
                 if (a.isInstance(message)) {
                     try {
                         handler.onMessage(message, this, client);

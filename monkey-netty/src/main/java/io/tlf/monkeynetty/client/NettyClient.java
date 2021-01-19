@@ -208,6 +208,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                                 } else {
                                     LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
                                 }
+                                ctx.fireChannelRead(msg);
                             }
 
                             @Override
@@ -230,7 +231,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                                     if (e.state() == IdleState.READER_IDLE) {
                                         handleInactiveConnection();
                                     } else if (e.state() == IdleState.WRITER_IDLE) {
-                                        ctx.writeAndFlush(new PingMessage());
+                                        send(new PingMessage());
                                     }
                                 }
                             }

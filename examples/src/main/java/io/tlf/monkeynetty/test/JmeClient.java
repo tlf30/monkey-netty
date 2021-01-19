@@ -24,6 +24,7 @@ SOFTWARE.
 
 package io.tlf.monkeynetty.test;
 
+import io.netty.handler.logging.LogLevel;
 import io.tlf.monkeynetty.ConnectionListener;
 import io.tlf.monkeynetty.test.messages.TestUDPBigMessageA;
 import io.tlf.monkeynetty.test.messages.TestTCPBigMessageA;
@@ -50,8 +51,9 @@ public class JmeClient extends SimpleApplication {
 
     @Override
     public void simpleInitApp() {
-         client = new NettyClient("test", true, 10000, "localhost");
+        client = new NettyClient("test", true, 10000, "localhost");
         stateManager.attach(client);
+        client.setLogLevel(LogLevel.INFO);
         client.registerListener(new MessageListener() {
             @Override
             public void onMessage(NetworkMessage msg, NetworkServer server, NetworkClient client) {
@@ -60,7 +62,7 @@ public class JmeClient extends SimpleApplication {
 
             @Override
             public Class<? extends NetworkMessage>[] getSupportedMessages() {
-                return new Class[] {TestTCPMessage.class, TestUDPMessage.class, TestTCPBigMessageA.class, TestTCPBigMessageB.class, TestUDPBigMessageA.class, TestUDPBigMessageB.class};
+                return new Class[]{TestTCPMessage.class, TestUDPMessage.class, TestTCPBigMessageA.class, TestTCPBigMessageB.class, TestUDPBigMessageA.class, TestUDPBigMessageB.class};
             }
         });
 

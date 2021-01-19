@@ -146,18 +146,22 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         return tcpClients.size();
     }
 
+    @Override
     public boolean isBlocking() {
         return blocking;
     }
 
+    @Override
     public void setBlocking(boolean blocking) {
         this.blocking = blocking;
     }
 
+    @Override
     public int getMaxConnections() {
         return maxConnections;
     }
 
+    @Override
     public void setMaxConnections(int maxConnections) {
         this.maxConnections = maxConnections;
     }

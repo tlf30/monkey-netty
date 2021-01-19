@@ -62,6 +62,35 @@ public interface NetworkServer {
     public NetworkProtocol[] getProtocol();
 
     /**
+     * @return true if the server is currently blocking new connections
+     */
+    public boolean isBlocking();
+
+    /**
+     * Set if the server should block incoming connections. If true
+     * the server will close all incoming connections immediately without
+     * performing a handshake after establishing the connection.
+     *
+     * @param blocking If the server should block incoming connections.
+     */
+    public void setBlocking(boolean blocking);
+
+    /**
+     * @return The maximum number of connections the server will allow.
+     */
+    public int getMaxConnections();
+
+    /**
+     * This sets the maximum number of connections the server will be allowed to have at any given time.
+     * If a connection is attempted to the server and the server currently has the maximum number of
+     * connections, it will immediately close the connection without performing a handshake after establishing
+     * the connection.
+     *
+     * @param maxConnections The maximum number of connections the server will allow.
+     */
+    public void setMaxConnections(int maxConnections);
+
+    /**
      * Send a message to all clients connected to the server.
      *
      * @param message The message to send

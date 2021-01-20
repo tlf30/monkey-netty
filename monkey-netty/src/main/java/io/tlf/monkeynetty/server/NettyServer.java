@@ -84,18 +84,57 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     private File cert;
     private File key;
 
+    /**
+     * Create a new UDP/TCP server.
+     * The server will be created without SSL
+     *
+     * @param service The name of the service the server is running
+     * @param port The port the TCP/UDP server will listen on
+     */
     public NettyServer(String service, int port) {
         this(service, false, port);
     }
 
+    /**
+     * Create a new UDP/TCP server.
+     * If ssl is enabled, the TCP server will generate a self signed certificate and use ssl.
+     *
+     * @param service The name of the service the server is running
+     * @param ssl If ssl should be used on the TCP server
+     * @param port The port the TCP/UDP server will listen on
+     */
     public NettyServer(String service, boolean ssl, int port) {
         this(service, ssl, true, null, null, port);
     }
 
+    /**
+     * Create a new UDP/TCP server.
+     * If ssl is enabled, and a certificate key pair are provided, the TCP server will use ssl.
+     * If the server failes to load the cert key pair, or they are null, it will fail back to non-ssl.
+     *
+     * @param service The name of the service the server is running
+     * @param ssl If ssl should be used on the TCP server
+     * @param cert The certificate file, or null
+     * @param key The certificate key, or null
+     * @param port The port the TCP/UDP server will listen on
+     */
     public NettyServer(String service, boolean ssl, File cert, File key, int port) {
         this(service, ssl, false, cert, key, port);
     }
 
+    /**
+     * Create a new UDP/TCP server.
+     * If ssl is enabled, and a certificate key pair are provided, the TCP server will use ssl.
+     * If the server failes to load the cert key pair, or they are null, it will fail back to
+     * a self signed certificate if enabled, otherwise will fail back to non-ssl.
+     *
+     * @param service The name of the service the server is running
+     * @param ssl If ssl should be used on the TCP server
+     * @param selfGenCert If a self signed certificate can be used.
+     * @param cert The certificate file, or null to use self signed cert
+     * @param key The certificate key, or null to use self signed cert
+     * @param port The port the TCP/UDP server will listen on
+     */
     private NettyServer(String service, boolean ssl, boolean selfGenCert, File cert, File key, int port) {
         this.service = service;
         this.port = port;
@@ -166,6 +205,13 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         this.maxConnections = maxConnections;
     }
 
+    /**
+     * Internal use only
+     * Process an incoming client connection.
+     * Will handle max connections and blocking mode.
+     * Will fire connection listeners.
+     * @param client The client making the connection
+     */
     private void receive(NetworkClient client) {
         if (isBlocking() || getConnections() >= getMaxConnections() || !(client instanceof NettyConnection)) {
             client.disconnect();
@@ -195,6 +241,14 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         }
     }
 
+    /**
+     * Internal use only
+     * Process an incoming message from a client.
+     * Will notify message listeners.
+     *
+     * @param client The client the message was from
+     * @param message The message sent
+     */
     private void receive(NetworkClient client, NetworkMessage message) {
         client.receive(message);
         for (MessageListener handler : messageListeners) {
@@ -221,7 +275,6 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         client.send(message);
     }
 
-
     @Override
     public int getPort() {
         return port;
@@ -242,10 +295,31 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         return new NetworkProtocol[]{NetworkProtocol.UDP, NetworkProtocol.TCP};
     }
 
+    /**
+     * Sets the Netty.IO internal log level.
+     * This will not change the <code>java.util.logger</code> Logger for Monkey-Netty.
+     * @param logLevel The internal Netty.IO log level
+     */
     public void setLogLevel(LogLevel logLevel) {
         this.logLevel = logLevel;
     }
 
+    /**
+     * @return The internal Netty.IO log level
+     */
+    public LogLevel getLogLevel() {
+        return logLevel;
+    }
+
+    /**
+     * Internal use only
+     * Setup the TCP netty.io server pipeline.
+     * This will create a dedicated TCP channel for each client.
+     * The pipeline is setup to handle <code>NetworkMessage</code> message types.
+     * The pipeline will also send/receive a ping to/from the client to ensure the connection is still active.
+     * If the connection becomes inactive, the server will disconnect the client.
+     * The pipeline will be configured with SSL if SSL parameters have been passed to the server.
+     */
     private void setupTcp() {
         //Setup ssl
         if (ssl) {
@@ -373,6 +447,12 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         }
     }
 
+    /**
+     * Internal use onle
+     * Setup the UDP netty.io server pipeline.
+     * This will create a dedicated UDP channel for each client.
+     * The pipeline is setup to handle <code>NetworkMessage</code> message types.
+     */
     private void setupUdp() {
         try {
             udpConGroup = new NioEventLoopGroup();
@@ -449,6 +529,11 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         }
     }
 
+    /**
+     * Internal use only
+     * Catch a network error. This will cause the error to be sent to the logger.
+     * @param cause The error to catch
+     */
     private void catchNetworkError(Throwable cause) {
         if (!(cause instanceof java.net.SocketException)) {
             LOGGER.log(Level.WARNING, "Network Server Error", cause);
@@ -477,6 +562,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     }
 
     /**
+     * Internal use only
      * Generates a base64 like hash
      *
      * @param len The number of characters to generate in the hash

@@ -99,14 +99,38 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     private final Object handlerLock = new Object();
     private final LinkedList<NetworkMessage> messageCache = new LinkedList<>();
 
+    /**
+     * Creates a new client configured to connect to the server.
+     * This connection will have SSL disabled.
+     * @param service The name of the service running on this client
+     * @param port The port the server is listening on
+     * @param server The host/ip of the server
+     */
     public NettyClient(String service, int port, String server) {
         this(service, false, false, port, server);
     }
 
+    /**
+     * Creates a new client configured to connect to the server.
+     *
+     * @param service The name of the service running on this client
+     * @param ssl If the client should attempt to connect with ssl
+     * @param port The port the server is listening on
+     * @param server The host/ip of the server
+     */
     public NettyClient(String service, boolean ssl, int port, String server) {
         this(service, ssl, true, port, server);
     }
 
+    /**
+     * Creates a new client configured to connect to the server.
+     *
+     * @param service The name of the service running on this client
+     * @param ssl If the client should attempt to connect with ssl
+     * @param sslSelfSigned If the client will allow the server to use a self signed ssl certificate
+     * @param port The port the server is listening on
+     * @param server The host/ip of the server
+     */
     public NettyClient(String service, boolean ssl, boolean sslSelfSigned, int port, String server) {
         this.service = service;
         this.port = port;
@@ -131,30 +155,68 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         setupTcp();
     }
 
+    @Override
     public void onDisable() {
         disconnect();
     }
 
-    public int getConnectionTimeout() {
-        return connectionTimeout;
-    }
-
+    /**
+     * Set the timeout duration in milliseconds for creating a new connection from the client to the server.
+     * This does not effect the read/write timeouts for messages after the connection has been established.
+     * @param connectionTimeout The timeout in milliseconds for creating a new connection.
+     */
     public void setConnectionTimeout(int connectionTimeout) {
         this.connectionTimeout = connectionTimeout;
     }
 
+    /**
+     * @return The timeout in milliseconds for creating a new connection
+     */
+    public int getConnectionTimeout() {
+        return connectionTimeout;
+    }
+
+    /**
+     * Sets the Netty.IO internal log level.
+     * This will not change the <code>java.util.logger</code> Logger for Monkey-Netty.
+     * @param logLevel The internal Netty.IO log level
+     */
     public void setLogLevel(LogLevel logLevel) {
         this.logLevel = logLevel;
     }
 
+    /**
+     * @return The internal Netty.IO log level
+     */
+    public LogLevel getLogLevel() {
+        return logLevel;
+    }
+
+    /**
+     * Sets the message cache mode. By default the mode is <code>MessageCacheMode.ENABLE_TCP</code>
+     * See <code>MessageCacheMode</code> for more information about the supported mode options.
+     * @param mode The desired message cache mode.
+     */
     public void setMessageCacheMode(MessageCacheMode mode) {
         this.cacheMode = mode;
     }
 
+    /**
+     * @return The current message cache mode.
+     */
     public MessageCacheMode getMessageCacheMode() {
         return cacheMode;
     }
 
+    /**
+     * Internal use only
+     * Setup the TCP netty.io pipeline.
+     * This will create a dedicated TCP channel to the server.
+     * The pipeline is setup to handle <code>NetworkMessage</code> message types.
+     * The pipeline will also send/receive a ping to/from the server to ensure the connection is still active.
+     * If the connection becomes inactive, the client will attempt a new connection.
+     * The pipeline will be configured with SSL if SSL parameters have been passed to the client.
+     */
     private void setupTcp() {
         LOGGER.fine("Setting up tcp");
         if (ssl) {
@@ -208,6 +270,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                                 } else {
                                     LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
                                 }
+                                ctx.fireChannelRead(msg);
                             }
 
                             @Override
@@ -225,14 +288,12 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                         new ChannelDuplexHandler() {
                             @Override
                             public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
-                                System.out.println("Got event: " + evt.getClass().getName());
                                 if (evt instanceof IdleStateEvent) {
-                                    System.out.println("Got idle state: " + ((IdleStateEvent) evt).state());
                                     IdleStateEvent e = (IdleStateEvent) evt;
                                     if (e.state() == IdleState.READER_IDLE) {
                                         handleInactiveConnection();
                                     } else if (e.state() == IdleState.WRITER_IDLE) {
-                                        ctx.writeAndFlush(new PingMessage());
+                                        send(new PingMessage());
                                     }
                                 }
                             }
@@ -254,6 +315,13 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         }
     }
 
+    /**
+     * Internal use onle
+     * Setup the UDP netty.io pipeline.
+     * This will create a dedicated UDP channel to the server.
+     * The pipeline is setup to handle <code>NetworkMessage</code> message types.
+     * @param hash The hash that will be used to establish the UDP channel with the server.
+     */
     private void setupUdp(String hash) {
         LOGGER.fine("Setting up udp");
         udpGroup = new NioEventLoopGroup();
@@ -278,13 +346,17 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                         new ChannelInboundHandlerAdapter() {
                             @Override
                             public void channelRead(ChannelHandlerContext ctx, Object netObj) {
-                                AddressedEnvelope<Object, InetSocketAddress> envelope = (AddressedEnvelope<Object, InetSocketAddress>) netObj;
-                                Object msg = envelope.content();
-                                if (msg instanceof NetworkMessage) {
-                                    receive((NetworkMessage) msg);
-                                } else {
-                                    LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
+                                if (netObj instanceof AddressedEnvelope) {
+                                    //We don't care about the envelope type, only the object within if it is a NetworkMessage
+                                    AddressedEnvelope<?, ?> envelope = (AddressedEnvelope<?, ?>) netObj;
+                                    Object msg = envelope.content();
+                                    if (msg instanceof NetworkMessage) {
+                                        receive((NetworkMessage) msg);
+                                    } else {
+                                        LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
+                                    }
                                 }
+                                ctx.fireChannelRead(netObj);
                             }
 
                             @Override
@@ -312,6 +384,11 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         }
     }
 
+    /**
+     * Internal use only
+     * Completes the connection and notifies all connection listeners
+     * that the client has connected.
+     */
     protected void completeConnection() {
         pendingEstablish = false;
         LOGGER.log(Level.FINEST, "Connection established");
@@ -325,6 +402,11 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         }
     }
 
+    /**
+     * Internal use only
+     * If the client is disconnecting from the server, then this function will not perform
+     * any action. Otherwise, we will attempt to reconnect.
+     */
     private void handleInactiveConnection() {
         if (disconnecting) {
             return; //We will ignore inactive connections when disconnecting as this will get triggered
@@ -334,6 +416,12 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         reconnect = true;
     }
 
+    /**
+     * Internal use only
+     * Catch a network error. This will cause the error to be sent to the logger.
+     * Catching the exception will cause the client to attempt to reconnect to the server.
+     * @param cause The error to catch
+     */
     private void catchNetworkError(Throwable cause) {
         //if (cause instanceof java.net.SocketException) {
         //The server disconnected unexpectedly, we will not log it.
@@ -401,6 +489,19 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         send(message, true);
     }
 
+    /**
+     * Internal use only
+     * Send a message from the client to the server.
+     * If caching is enabled on the client, and @param enabledCache is <code>true</code>
+     * then the cache will be used if the client is not currently connected to the server.
+     * Otherwise, the client will attempt to send the message without the cache.
+     *
+     * The client will select the appropriate TCP or UDP channel to send the message
+     * to the server on, depending on the protocol specified in the message.
+     *
+     * @param message The message to send to the client
+     * @param enableCache If the client should attempt to use the message cache if required
+     */
     private void send(NetworkMessage message, boolean enableCache) {
         if (!isConnected() && enableCache) {
             if (cacheMode == MessageCacheMode.ENABLED) {

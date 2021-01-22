@@ -32,8 +32,6 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.serialization.ClassResolvers;
-import io.netty.handler.codec.serialization.ObjectDecoder;
-import io.netty.handler.codec.serialization.ObjectEncoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
@@ -53,7 +51,6 @@ import java.security.SecureRandom;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
 
 public class NettyServer extends BaseAppState implements NetworkServer {
 
@@ -87,18 +84,57 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     private File cert;
     private File key;
 
+    /**
+     * Create a new UDP/TCP server.
+     * The server will be created without SSL
+     *
+     * @param service The name of the service the server is running
+     * @param port The port the TCP/UDP server will listen on
+     */
     public NettyServer(String service, int port) {
         this(service, false, port);
     }
 
+    /**
+     * Create a new UDP/TCP server.
+     * If ssl is enabled, the TCP server will generate a self signed certificate and use ssl.
+     *
+     * @param service The name of the service the server is running
+     * @param ssl If ssl should be used on the TCP server
+     * @param port The port the TCP/UDP server will listen on
+     */
     public NettyServer(String service, boolean ssl, int port) {
         this(service, ssl, true, null, null, port);
     }
 
+    /**
+     * Create a new UDP/TCP server.
+     * If ssl is enabled, and a certificate key pair are provided, the TCP server will use ssl.
+     * If the server failes to load the cert key pair, or they are null, it will fail back to non-ssl.
+     *
+     * @param service The name of the service the server is running
+     * @param ssl If ssl should be used on the TCP server
+     * @param cert The certificate file, or null
+     * @param key The certificate key, or null
+     * @param port The port the TCP/UDP server will listen on
+     */
     public NettyServer(String service, boolean ssl, File cert, File key, int port) {
         this(service, ssl, false, cert, key, port);
     }
 
+    /**
+     * Create a new UDP/TCP server.
+     * If ssl is enabled, and a certificate key pair are provided, the TCP server will use ssl.
+     * If the server failes to load the cert key pair, or they are null, it will fail back to
+     * a self signed certificate if enabled, otherwise will fail back to non-ssl.
+     *
+     * @param service The name of the service the server is running
+     * @param ssl If ssl should be used on the TCP server
+     * @param selfGenCert If a self signed certificate can be used.
+     * @param cert The certificate file, or null to use self signed cert
+     * @param key The certificate key, or null to use self signed cert
+     * @param port The port the TCP/UDP server will listen on
+     */
     private NettyServer(String service, boolean ssl, boolean selfGenCert, File cert, File key, int port) {
         this.service = service;
         this.port = port;
@@ -149,22 +185,33 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         return tcpClients.size();
     }
 
+    @Override
     public boolean isBlocking() {
         return blocking;
     }
 
+    @Override
     public void setBlocking(boolean blocking) {
         this.blocking = blocking;
     }
 
+    @Override
     public int getMaxConnections() {
         return maxConnections;
     }
 
+    @Override
     public void setMaxConnections(int maxConnections) {
         this.maxConnections = maxConnections;
     }
 
+    /**
+     * Internal use only
+     * Process an incoming client connection.
+     * Will handle max connections and blocking mode.
+     * Will fire connection listeners.
+     * @param client The client making the connection
+     */
     private void receive(NetworkClient client) {
         if (isBlocking() || getConnections() >= getMaxConnections() || !(client instanceof NettyConnection)) {
             client.disconnect();
@@ -194,10 +241,18 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         }
     }
 
+    /**
+     * Internal use only
+     * Process an incoming message from a client.
+     * Will notify message listeners.
+     *
+     * @param client The client the message was from
+     * @param message The message sent
+     */
     private void receive(NetworkClient client, NetworkMessage message) {
         client.receive(message);
         for (MessageListener handler : messageListeners) {
-            for (Class a : handler.getSupportedMessages()) {
+            for (Class<? extends NetworkMessage> a : handler.getSupportedMessages()) {
                 if (a.isInstance(message)) {
                     try {
                         handler.onMessage(message, this, client);
@@ -220,7 +275,6 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         client.send(message);
     }
 
-
     @Override
     public int getPort() {
         return port;
@@ -241,10 +295,31 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         return new NetworkProtocol[]{NetworkProtocol.UDP, NetworkProtocol.TCP};
     }
 
+    /**
+     * Sets the Netty.IO internal log level.
+     * This will not change the <code>java.util.logger</code> Logger for Monkey-Netty.
+     * @param logLevel The internal Netty.IO log level
+     */
     public void setLogLevel(LogLevel logLevel) {
         this.logLevel = logLevel;
     }
 
+    /**
+     * @return The internal Netty.IO log level
+     */
+    public LogLevel getLogLevel() {
+        return logLevel;
+    }
+
+    /**
+     * Internal use only
+     * Setup the TCP netty.io server pipeline.
+     * This will create a dedicated TCP channel for each client.
+     * The pipeline is setup to handle <code>NetworkMessage</code> message types.
+     * The pipeline will also send/receive a ping to/from the client to ensure the connection is still active.
+     * If the connection becomes inactive, the server will disconnect the client.
+     * The pipeline will be configured with SSL if SSL parameters have been passed to the server.
+     */
     private void setupTcp() {
         //Setup ssl
         if (ssl) {
@@ -280,14 +355,19 @@ public class NettyServer extends BaseAppState implements NetworkServer {
 
                             //Disconnect client listener
                             ch.closeFuture().addListener((ChannelFutureListener) future -> {
-                                if (tcpClients.get(future.channel()) == null) {
+                                NettyConnection connection = tcpClients.get(future.channel());
+                                if (connection == null) {
                                     return; //No client on this connection
                                 }
 
-                                //Check if the client is currently trying to a udp connection
-                                if (secrets.containsValue(tcpClients.get(future.channel()))) { //Client never established udp channel
-                                    //find secret for client
-                                    String secret = secrets.keySet().stream().filter(s -> secrets.get(s).equals(tcpClients.get(future.channel()))).collect(Collectors.toList()).get(0);
+                                //find and remove secret for client if one exists
+                                String secret = null;
+                                for (String key : Collections.unmodifiableCollection(secrets.keySet())) {
+                                    if (secrets.get(key).equals(connection)) {
+                                        secret = key;
+                                    }
+                                }
+                                if (secret != null) {
                                     secrets.remove(secret);
                                 }
 
@@ -327,6 +407,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                             } else {
                                                 LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
                                             }
+                                            ctx.fireChannelRead(msg);
                                         }
 
                                         @Override
@@ -349,7 +430,8 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                                 if (e.state() == IdleState.READER_IDLE) {
                                                     ctx.close();
                                                 } else if (e.state() == IdleState.WRITER_IDLE) {
-                                                    ctx.writeAndFlush(new PingMessage());
+                                                    NettyConnection conn = tcpClients.get(ctx.channel());
+                                                    conn.send(new PingMessage());
                                                 }
                                             }
                                         }
@@ -365,6 +447,12 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         }
     }
 
+    /**
+     * Internal use onle
+     * Setup the UDP netty.io server pipeline.
+     * This will create a dedicated UDP channel for each client.
+     * The pipeline is setup to handle <code>NetworkMessage</code> message types.
+     */
     private void setupUdp() {
         try {
             udpConGroup = new NioEventLoopGroup();
@@ -399,12 +487,14 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                                 NettyConnection client = secrets.get(((UdpConHashMessage) msg).getUdpHash());
                                                 if (client == null) {
                                                     ctx.close();
+                                                    //Do not pass the message on, we are forcibly disconnecting the client
                                                     return;
                                                 }
                                                 secrets.remove(((UdpConHashMessage) msg).getUdpHash());
                                                 client.setUdp((UdpChannel) ctx.channel());
                                                 udpClients.put(ctx.channel(), client);
                                                 receive(client);
+                                                ctx.fireChannelRead(msg);
                                                 return;
                                             }
                                             if (msg instanceof NetworkMessage) {
@@ -417,6 +507,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                             } else {
                                                 LOGGER.log(Level.SEVERE, "Received message that was not a NetworkMessage object");
                                             }
+                                            ctx.fireChannelRead(msg);
                                         }
 
                                         @Override
@@ -438,6 +529,11 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         }
     }
 
+    /**
+     * Internal use only
+     * Catch a network error. This will cause the error to be sent to the logger.
+     * @param cause The error to catch
+     */
     private void catchNetworkError(Throwable cause) {
         if (!(cause instanceof java.net.SocketException)) {
             LOGGER.log(Level.WARNING, "Network Server Error", cause);
@@ -466,6 +562,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     }
 
     /**
+     * Internal use only
      * Generates a base64 like hash
      *
      * @param len The number of characters to generate in the hash

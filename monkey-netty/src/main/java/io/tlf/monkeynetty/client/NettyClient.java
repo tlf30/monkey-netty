@@ -52,6 +52,8 @@ import io.tlf.monkeynetty.msg.UdpConHashMessage;
 
 import java.net.InetSocketAddress;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -63,7 +65,6 @@ import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
 public class NettyClient extends BaseAppState implements NetworkClient {
 
     private final static Logger LOGGER = Logger.getLogger(NettyClient.class.getName());
-    private final HashMap<String, Object> atts = new HashMap<>();
 
     protected String service;
     protected int port;
@@ -94,17 +95,18 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     private DatagramChannel udpChannel;
     private SslContext sslContext;
 
-    private final HashSet<MessageListener> handlers = new HashSet<>();
-    private final Set<ConnectionListener> listeners = Collections.synchronizedSet(new HashSet<>());
-    private final Object handlerLock = new Object();
-    private final LinkedList<NetworkMessage> messageCache = new LinkedList<>();
+    private final Set<MessageListener> handlers = ConcurrentHashMap.newKeySet();
+    private final Set<ConnectionListener> listeners = ConcurrentHashMap.newKeySet();
+    private final ConcurrentLinkedQueue<NetworkMessage> messageCache = new ConcurrentLinkedQueue<>();
+    private final Map<String, Object> atts = new ConcurrentHashMap<>();
 
     /**
      * Creates a new client configured to connect to the server.
      * This connection will have SSL disabled.
+     *
      * @param service The name of the service running on this client
-     * @param port The port the server is listening on
-     * @param server The host/ip of the server
+     * @param port    The port the server is listening on
+     * @param server  The host/ip of the server
      */
     public NettyClient(String service, int port, String server) {
         this(service, false, false, port, server);
@@ -114,9 +116,9 @@ public class NettyClient extends BaseAppState implements NetworkClient {
      * Creates a new client configured to connect to the server.
      *
      * @param service The name of the service running on this client
-     * @param ssl If the client should attempt to connect with ssl
-     * @param port The port the server is listening on
-     * @param server The host/ip of the server
+     * @param ssl     If the client should attempt to connect with ssl
+     * @param port    The port the server is listening on
+     * @param server  The host/ip of the server
      */
     public NettyClient(String service, boolean ssl, int port, String server) {
         this(service, ssl, true, port, server);
@@ -125,11 +127,11 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     /**
      * Creates a new client configured to connect to the server.
      *
-     * @param service The name of the service running on this client
-     * @param ssl If the client should attempt to connect with ssl
+     * @param service       The name of the service running on this client
+     * @param ssl           If the client should attempt to connect with ssl
      * @param sslSelfSigned If the client will allow the server to use a self signed ssl certificate
-     * @param port The port the server is listening on
-     * @param server The host/ip of the server
+     * @param port          The port the server is listening on
+     * @param server        The host/ip of the server
      */
     public NettyClient(String service, boolean ssl, boolean sslSelfSigned, int port, String server) {
         this.service = service;
@@ -163,6 +165,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     /**
      * Set the timeout duration in milliseconds for creating a new connection from the client to the server.
      * This does not effect the read/write timeouts for messages after the connection has been established.
+     *
      * @param connectionTimeout The timeout in milliseconds for creating a new connection.
      */
     public void setConnectionTimeout(int connectionTimeout) {
@@ -179,6 +182,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     /**
      * Sets the Netty.IO internal log level.
      * This will not change the <code>java.util.logger</code> Logger for Monkey-Netty.
+     *
      * @param logLevel The internal Netty.IO log level
      */
     public void setLogLevel(LogLevel logLevel) {
@@ -195,6 +199,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     /**
      * Sets the message cache mode. By default the mode is <code>MessageCacheMode.ENABLE_TCP</code>
      * See <code>MessageCacheMode</code> for more information about the supported mode options.
+     *
      * @param mode The desired message cache mode.
      */
     public void setMessageCacheMode(MessageCacheMode mode) {
@@ -320,6 +325,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
      * Setup the UDP netty.io pipeline.
      * This will create a dedicated UDP channel to the server.
      * The pipeline is setup to handle <code>NetworkMessage</code> message types.
+     *
      * @param hash The hash that will be used to establish the UDP channel with the server.
      */
     private void setupUdp(String hash) {
@@ -420,6 +426,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
      * Internal use only
      * Catch a network error. This will cause the error to be sent to the logger.
      * Catching the exception will cause the client to attempt to reconnect to the server.
+     *
      * @param cause The error to catch
      */
     private void catchNetworkError(Throwable cause) {
@@ -473,7 +480,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         if (messageCache.size() > 0) {
             LOGGER.finest("Sending cached messages");
             while (messageCache.size() > 0 && isConnected()) {
-                send(messageCache.removeFirst());
+                send(messageCache.poll());
             }
             LOGGER.finest("Done sending cached messages");
         }
@@ -495,21 +502,21 @@ public class NettyClient extends BaseAppState implements NetworkClient {
      * If caching is enabled on the client, and @param enabledCache is <code>true</code>
      * then the cache will be used if the client is not currently connected to the server.
      * Otherwise, the client will attempt to send the message without the cache.
-     *
+     * <p>
      * The client will select the appropriate TCP or UDP channel to send the message
      * to the server on, depending on the protocol specified in the message.
      *
-     * @param message The message to send to the client
+     * @param message     The message to send to the client
      * @param enableCache If the client should attempt to use the message cache if required
      */
     private void send(NetworkMessage message, boolean enableCache) {
         if (!isConnected() && enableCache) {
             if (cacheMode == MessageCacheMode.ENABLED) {
-                messageCache.push(message);
+                messageCache.add(message);
             } else if (cacheMode == MessageCacheMode.TCP_ENABLED && message.getProtocol() == NetworkProtocol.TCP) {
-                messageCache.push(message);
+                messageCache.add(message);
             } else if (cacheMode == MessageCacheMode.UDP_ENABLED && message.getProtocol() == NetworkProtocol.UDP) {
-                messageCache.push(message);
+                messageCache.add(message);
             }
             return;
         }
@@ -574,33 +581,27 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     public void receive(NetworkMessage message) {
         LOGGER.finest("Got message: " + message.getName());
         //Handlers
-        synchronized (handlerLock) {
-            try {
-                for (MessageListener handler : handlers) {
-                    for (Class<? extends NetworkMessage> a : handler.getSupportedMessages()) {
-                        if (a.isInstance(message)) {
-                            handler.onMessage(message, null, this);
-                        }
+        try {
+            for (MessageListener handler : handlers) {
+                for (Class<? extends NetworkMessage> a : handler.getSupportedMessages()) {
+                    if (a.isInstance(message)) {
+                        handler.onMessage(message, null, this);
                     }
                 }
-            } catch (Exception ex) {
-                LOGGER.log(Level.SEVERE, "An error occurred handling message " + message.getName(), ex);
             }
+        } catch (Exception ex) {
+            LOGGER.log(Level.SEVERE, "An error occurred handling message " + message.getName(), ex);
         }
     }
 
     @Override
     public void registerListener(MessageListener handler) {
-        synchronized (handlerLock) {
-            handlers.add(handler);
-        }
+        handlers.add(handler);
     }
 
     @Override
     public void unregisterListener(MessageListener handler) {
-        synchronized (handlerLock) {
-            handlers.remove(handler);
-        }
+        handlers.remove(handler);
     }
 
     @Override

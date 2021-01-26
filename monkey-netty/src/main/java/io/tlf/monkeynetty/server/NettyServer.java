@@ -49,18 +49,19 @@ import io.tlf.monkeynetty.msg.UdpConHashMessage;
 import java.io.File;
 import java.security.SecureRandom;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class NettyServer extends BaseAppState implements NetworkServer {
 
     private final static Logger LOGGER = Logger.getLogger(NettyServer.class.getName());
-    private final Set<MessageListener> messageListeners = Collections.synchronizedSet(new HashSet<>());
-    private final Set<ConnectionListener> connectionListeners = Collections.synchronizedSet(new HashSet<>());
-    private final Map<Channel, NettyConnection> tcpClients = Collections.synchronizedMap(new HashMap<>());
-    private final Map<Channel, NettyConnection> udpClients = Collections.synchronizedMap(new HashMap<>());
-    private final Map<String, NettyConnection> secrets = Collections.synchronizedMap(new HashMap<>());
-    private final Set<NetworkClient> pendingConnections = Collections.synchronizedSet(new HashSet<>());
+    private final Set<MessageListener> messageListeners = ConcurrentHashMap.newKeySet();
+    private final Set<ConnectionListener> connectionListeners = ConcurrentHashMap.newKeySet();
+    private final Map<Channel, NettyConnection> tcpClients = new ConcurrentHashMap<>();
+    private final Map<Channel, NettyConnection> udpClients = new ConcurrentHashMap<>();
+    private final Map<String, NettyConnection> secrets = new ConcurrentHashMap<>();
+    private final Set<NetworkClient> pendingConnections = ConcurrentHashMap.newKeySet();
 
     private int maxConnections = 10;
     private boolean blocking = false;

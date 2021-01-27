@@ -6,7 +6,7 @@ allprojects {
         //Dependency Versions
         jmeVersion = "3.3.0-stable"
         jmeGroup = "org.jmonkeyengine"
-        nettyioVersion = "4.1.51.Final"
+        nettyioVersion = "4.1.58.Final"
     }
 
     repositories {

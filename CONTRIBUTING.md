@@ -14,7 +14,7 @@ A branch will not be accepted when:
 * Conflicts with master branch
 * Does not pass pipeline build
 * Does not provide any contribution
-* Contains improperly formated code
+* Contains improperly formatted code
 * Contains a feature or fix that was not approved.
 
 ### Issue Branches
@@ -25,19 +25,16 @@ A branch will not be accepted when:
 * Conflicts with master branch
 * Does not pass pipeline build
 * Does not provide any contribution
-* Contains improperly formated code
+* Contains improperly formatted code
 * Contains a feature or fix that was not approved.
 
 ### The Master Branch
 The master branch is the current development branch that all work will be merged into.
-A commit to this branch will trigger a pipeline build and deployment using `deploy-dev` which will deploy
-the branch.
 
 ### Production Branches
 A production branch will deploy the application.  
-The branch must be named: `production-v[version]`
-This naming convention will trigger the pipeline to run a `deploy-production` instead of a `deploy-dev`
-which will deploy the application.
+The branch must be named: `[release issue #]-release-v[version]`  
+Example: `33-release-v0.1.1`  
 
 ## Issues
 
@@ -46,7 +43,7 @@ If you find a bug, security exploit, or feature. Please create an issue with the
 Do not attach the `issue` tag to something that is not a bug or security exploit.
 Do not attach the `feature` tag to something that is not a possible feature or enhancement.
 Do not attach a group tage such as `front-end` or `back-end` to an issue that does not pertain to the group.
-Do not attach a `review` or `second-opinion` tag to issues that do not need feedback from Trevor Flynn or Jayce Miller respectivly.
+Do not attach a `review` or `second-opinion` tag to issues that do not need feedback from Trevor Flynn or Jayce Miller respectively.
 Attach a code tag if the issue pertains to a type of code. For example, if there is an issue inside of the database, attach the `database` tag.  
 
 ### Assigning

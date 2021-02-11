@@ -1,6 +1,6 @@
 #### v0.1.1
  * Fixed concurrency issues with Collections (#31)
- * Updated Netty.IO to version 4.1.58 (29)
+ * Updated Netty.IO to version 4.1.58 (#29)
  * Updated Gradle to version 6.8.1 (#30)
 
 #### v0.1.0

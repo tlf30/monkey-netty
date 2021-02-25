@@ -66,22 +66,12 @@ public class NettyClient extends BaseAppState implements NetworkClient {
 
     private final static Logger LOGGER = Logger.getLogger(NettyClient.class.getName());
 
-    protected String service;
-    protected int port;
-    protected String server;
-    protected boolean ssl;
-    protected boolean sslSelfSigned;
     protected volatile boolean reconnect = false;
     protected volatile boolean disconnecting = false;
     private volatile boolean udpHandshakeComplete = false;
     private volatile boolean pendingEstablish = true;
 
-    /*
-     * Connection timeout in milliseconds used when client is unable connect to server
-     * Note: Currently it do not apply when server is "off"
-     */
-    protected int connectionTimeout = 10000;
-    private MessageCacheMode cacheMode = MessageCacheMode.TCP_ENABLED;
+    protected final NetworkClientSettings settings;
     private LogLevel logLevel;
 
     //Netty
@@ -95,50 +85,23 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     private DatagramChannel udpChannel;
     private SslContext sslContext;
 
-    private final Set<MessageListener> handlers = ConcurrentHashMap.newKeySet();
-    private final Set<ConnectionListener> listeners = ConcurrentHashMap.newKeySet();
+    private final Set<ClientMessageListener> handlers = ConcurrentHashMap.newKeySet();
+    private final Set<ClientConnectionListener> listeners = ConcurrentHashMap.newKeySet();
     private final ConcurrentLinkedQueue<NetworkMessage> messageCache = new ConcurrentLinkedQueue<>();
     private final Map<String, Object> atts = new ConcurrentHashMap<>();
 
-    /**
-     * Creates a new client configured to connect to the server.
-     * This connection will have SSL disabled.
-     *
-     * @param service The name of the service running on this client
-     * @param port    The port the server is listening on
-     * @param server  The host/ip of the server
-     */
-    public NettyClient(String service, int port, String server) {
-        this(service, false, false, port, server);
-    }
 
     /**
      * Creates a new client configured to connect to the server.
-     *
-     * @param service The name of the service running on this client
-     * @param ssl     If the client should attempt to connect with ssl
-     * @param port    The port the server is listening on
-     * @param server  The host/ip of the server
+     * @param settings The settings to build the client
      */
-    public NettyClient(String service, boolean ssl, int port, String server) {
-        this(service, ssl, true, port, server);
+    public NettyClient(NetworkClientSettings settings) {
+        this.settings = settings;
     }
 
-    /**
-     * Creates a new client configured to connect to the server.
-     *
-     * @param service       The name of the service running on this client
-     * @param ssl           If the client should attempt to connect with ssl
-     * @param sslSelfSigned If the client will allow the server to use a self signed ssl certificate
-     * @param port          The port the server is listening on
-     * @param server        The host/ip of the server
-     */
-    public NettyClient(String service, boolean ssl, boolean sslSelfSigned, int port, String server) {
-        this.service = service;
-        this.port = port;
-        this.server = server;
-        this.ssl = ssl;
-        this.sslSelfSigned = sslSelfSigned;
+    @Override
+    public NetworkClientSettings getSettings() {
+        return settings;
     }
 
     @Override
@@ -162,22 +125,6 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         disconnect();
     }
 
-    /**
-     * Set the timeout duration in milliseconds for creating a new connection from the client to the server.
-     * This does not effect the read/write timeouts for messages after the connection has been established.
-     *
-     * @param connectionTimeout The timeout in milliseconds for creating a new connection.
-     */
-    public void setConnectionTimeout(int connectionTimeout) {
-        this.connectionTimeout = connectionTimeout;
-    }
-
-    /**
-     * @return The timeout in milliseconds for creating a new connection
-     */
-    public int getConnectionTimeout() {
-        return connectionTimeout;
-    }
 
     /**
      * Sets the Netty.IO internal log level.
@@ -196,22 +143,6 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         return logLevel;
     }
 
-    /**
-     * Sets the message cache mode. By default the mode is <code>MessageCacheMode.ENABLE_TCP</code>
-     * See <code>MessageCacheMode</code> for more information about the supported mode options.
-     *
-     * @param mode The desired message cache mode.
-     */
-    public void setMessageCacheMode(MessageCacheMode mode) {
-        this.cacheMode = mode;
-    }
-
-    /**
-     * @return The current message cache mode.
-     */
-    public MessageCacheMode getMessageCacheMode() {
-        return cacheMode;
-    }
 
     /**
      * Internal use only
@@ -224,9 +155,9 @@ public class NettyClient extends BaseAppState implements NetworkClient {
      */
     private void setupTcp() {
         LOGGER.fine("Setting up tcp");
-        if (ssl) {
+        if (settings.isSsl()) {
             try {
-                if (sslSelfSigned) {
+                if (settings.isSslSelfSigned()) {
                     sslContext = SslContextBuilder.forClient()
                             .trustManager(InsecureTrustManagerFactory.INSTANCE).build();
                 } else {
@@ -234,7 +165,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                 }
             } catch (Exception ex) {
                 LOGGER.log(Level.WARNING, "Failed to load ssl, failing back to no ssl", ex);
-                ssl = false;
+                settings.setSsl(false);
             }
         }
         //Setup TCP
@@ -242,17 +173,17 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         tcpClientBootstrap = new Bootstrap();
         tcpClientBootstrap.group(tcpGroup);
         tcpClientBootstrap.channel(NioSocketChannel.class);
-        tcpClientBootstrap.remoteAddress(new InetSocketAddress(server, port));
+        tcpClientBootstrap.remoteAddress(new InetSocketAddress(settings.getAddress(), settings.getTcpPort()));
         tcpClientBootstrap.handler(new ChannelInitializer<SocketChannel>() {
             protected void initChannel(SocketChannel socketChannel) {
                 tcpChannel = socketChannel;
                 SocketChannelConfig cfg = tcpChannel.config();
-                cfg.setConnectTimeoutMillis(connectionTimeout);
+                cfg.setConnectTimeoutMillis(settings.getConnectionTimeout());
 
                 ChannelPipeline p = socketChannel.pipeline();
                 //Setup ssl
-                if (ssl) {
-                    p.addLast(sslContext.newHandler(socketChannel.alloc(), server, port));
+                if (settings.isSsl()) {
+                    p.addLast(sslContext.newHandler(socketChannel.alloc(), settings.getAddress(), settings.getTcpPort()));
                 }
                 //Set log level
                 if (logLevel != null) {
@@ -334,12 +265,12 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         udpClientBootstrap = new Bootstrap();
         udpClientBootstrap.group(tcpGroup);
         udpClientBootstrap.channel(NioDatagramChannel.class);
-        udpClientBootstrap.remoteAddress(new InetSocketAddress(server, port));
+        udpClientBootstrap.remoteAddress(new InetSocketAddress(settings.getAddress(), settings.getUdpPort()));
         udpClientBootstrap.handler(new ChannelInitializer<DatagramChannel>() {
             protected void initChannel(DatagramChannel socketChannel) {
                 udpChannel = socketChannel;
                 DatagramChannelConfig cfg = udpChannel.config();
-                cfg.setConnectTimeoutMillis(connectionTimeout);
+                cfg.setConnectTimeoutMillis(settings.getConnectionTimeout());
                 //Setup pipeline
                 ChannelPipeline p = socketChannel.pipeline();
                 //Setup pipeline
@@ -399,7 +330,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         pendingEstablish = false;
         LOGGER.log(Level.FINEST, "Connection established");
         //Notify that we have completed the connection process
-        for (ConnectionListener listener : listeners) {
+        for (ClientConnectionListener listener : listeners) {
             try {
                 listener.onConnect(NettyClient.this);
             } catch (Exception ex) {
@@ -511,11 +442,11 @@ public class NettyClient extends BaseAppState implements NetworkClient {
      */
     private void send(NetworkMessage message, boolean enableCache) {
         if (!isConnected() && enableCache) {
-            if (cacheMode == MessageCacheMode.ENABLED) {
+            if (settings.getCacheMode() == MessageCacheMode.ENABLED) {
                 messageCache.add(message);
-            } else if (cacheMode == MessageCacheMode.TCP_ENABLED && message.getProtocol() == NetworkProtocol.TCP) {
+            } else if (settings.getCacheMode() == MessageCacheMode.TCP_ENABLED && message.getProtocol() == NetworkProtocol.TCP) {
                 messageCache.add(message);
-            } else if (cacheMode == MessageCacheMode.UDP_ENABLED && message.getProtocol() == NetworkProtocol.UDP) {
+            } else if (settings.getCacheMode() == MessageCacheMode.UDP_ENABLED && message.getProtocol() == NetworkProtocol.UDP) {
                 messageCache.add(message);
             }
             return;
@@ -537,7 +468,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     public void disconnect() {
         disconnecting = true;
         try {
-            for (ConnectionListener listener : listeners) {
+            for (ClientConnectionListener listener : listeners) {
                 listener.onDisconnect(this);
             }
         } catch (Exception ex) {
@@ -553,39 +484,14 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     }
 
     @Override
-    public String getAddress() {
-        return server;
-    }
-
-    @Override
-    public int getPort() {
-        return port;
-    }
-
-    @Override
-    public String getService() {
-        return service;
-    }
-
-    @Override
-    public boolean isSsl() {
-        return ssl;
-    }
-
-    @Override
-    public NetworkProtocol[] getProtocol() {
-        return new NetworkProtocol[]{NetworkProtocol.TCP, NetworkProtocol.UDP};
-    }
-
-    @Override
     public void receive(NetworkMessage message) {
         LOGGER.finest("Got message: " + message.getName());
         //Handlers
         try {
-            for (MessageListener handler : handlers) {
+            for (ClientMessageListener handler : handlers) {
                 for (Class<? extends NetworkMessage> a : handler.getSupportedMessages()) {
                     if (a.isInstance(message)) {
-                        handler.onMessage(message, null, this);
+                        handler.onMessage(message, this);
                     }
                 }
             }
@@ -595,22 +501,22 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     }
 
     @Override
-    public void registerListener(MessageListener handler) {
+    public void registerListener(ClientMessageListener handler) {
         handlers.add(handler);
     }
 
     @Override
-    public void unregisterListener(MessageListener handler) {
+    public void unregisterListener(ClientMessageListener handler) {
         handlers.remove(handler);
     }
 
     @Override
-    public void registerListener(ConnectionListener listener) {
+    public void registerListener(ClientConnectionListener listener) {
         listeners.add(listener);
     }
 
     @Override
-    public void unregisterListener(ConnectionListener listener) {
+    public void unregisterListener(ClientConnectionListener listener) {
         listeners.remove(listener);
     }
 

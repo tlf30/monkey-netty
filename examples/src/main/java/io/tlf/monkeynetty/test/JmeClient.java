@@ -25,7 +25,7 @@ SOFTWARE.
 package io.tlf.monkeynetty.test;
 
 import io.netty.handler.logging.LogLevel;
-import io.tlf.monkeynetty.ConnectionListener;
+import io.tlf.monkeynetty.client.*;
 import io.tlf.monkeynetty.test.messages.TestUDPBigMessageA;
 import io.tlf.monkeynetty.test.messages.TestTCPBigMessageA;
 import io.tlf.monkeynetty.test.messages.TestTCPMessage;
@@ -34,10 +34,6 @@ import com.jme3.app.SimpleApplication;
 import com.jme3.input.KeyInput;
 import com.jme3.input.controls.ActionListener;
 import com.jme3.input.controls.KeyTrigger;
-import io.tlf.monkeynetty.MessageListener;
-import io.tlf.monkeynetty.NetworkClient;
-import io.tlf.monkeynetty.NetworkServer;
-import io.tlf.monkeynetty.client.NettyClient;
 import io.tlf.monkeynetty.msg.NetworkMessage;
 import io.tlf.monkeynetty.test.messages.TestTCPBigMessageB;
 import io.tlf.monkeynetty.test.messages.TestUDPBigMessageB;
@@ -51,12 +47,19 @@ public class JmeClient extends SimpleApplication {
 
     @Override
     public void simpleInitApp() {
-        client = new NettyClient("test", true, 10000, "localhost");
+        NetworkClientSettings settings = new NetworkClientSettings();
+        settings.setService("test");
+        settings.setAddress("localhost");
+        settings.setTcpPort(10000);
+        settings.setUdpPort(10000);
+        settings.setSsl(true);
+        settings.setSslSelfSigned(true);
+        client = new NettyClient(settings);
         stateManager.attach(client);
         client.setLogLevel(LogLevel.INFO);
-        client.registerListener(new MessageListener() {
+        client.registerListener(new ClientMessageListener() {
             @Override
-            public void onMessage(NetworkMessage msg, NetworkServer server, NetworkClient client) {
+            public void onMessage(NetworkMessage msg, NetworkClient client) {
                 System.out.println("Got message " + msg);
             }
 
@@ -66,7 +69,7 @@ public class JmeClient extends SimpleApplication {
             }
         });
 
-        client.registerListener(new ConnectionListener() {
+        client.registerListener(new ClientConnectionListener() {
             @Override
             public void onConnect(NetworkClient client) {
                 client.send(new TestTCPMessage());

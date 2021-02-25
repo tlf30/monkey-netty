@@ -22,8 +22,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-package io.tlf.monkeynetty;
+package io.tlf.monkeynetty.server;
 
+import io.tlf.monkeynetty.client.NetworkClient;
 import io.tlf.monkeynetty.msg.NetworkMessage;
 
 /**
@@ -38,57 +39,12 @@ public interface NetworkServer {
      */
     public int getConnections();
 
-    /**
-     * @return The port number the server is listening on
-     */
-    public int getPort();
 
     /**
-     * @return If the server is using SSL for TCP transport
+     * @return The settings of the server
      */
-    public boolean isSsl();
+    public NetworkServerSettings getSettings();
 
-    /**
-     * The service string should be unique to each server.
-     * This is entirely for user use, and is not validated between server and client.
-     *
-     * @return The service the server is running.
-     */
-    public String getService();
-
-    /**
-     * @return Which network protocols the server supports
-     */
-    public NetworkProtocol[] getProtocol();
-
-    /**
-     * @return true if the server is currently blocking new connections
-     */
-    public boolean isBlocking();
-
-    /**
-     * Set if the server should block incoming connections. If true
-     * the server will close all incoming connections immediately without
-     * performing a handshake after establishing the connection.
-     *
-     * @param blocking If the server should block incoming connections.
-     */
-    public void setBlocking(boolean blocking);
-
-    /**
-     * @return The maximum number of connections the server will allow.
-     */
-    public int getMaxConnections();
-
-    /**
-     * This sets the maximum number of connections the server will be allowed to have at any given time.
-     * If a connection is attempted to the server and the server currently has the maximum number of
-     * connections, it will immediately close the connection without performing a handshake after establishing
-     * the connection.
-     *
-     * @param maxConnections The maximum number of connections the server will allow.
-     */
-    public void setMaxConnections(int maxConnections);
 
     /**
      * Send a message to all clients connected to the server.
@@ -110,26 +66,26 @@ public interface NetworkServer {
      *
      * @param handler The message listener to register
      */
-    public void registerListener(MessageListener handler);
+    public void registerListener(ServerMessageListener handler);
 
     /**
      * Unregister a message listener with the server.
      *
      * @param handler The message listener to unregister
      */
-    public void unregisterListener(MessageListener handler);
+    public void unregisterListener(ServerMessageListener handler);
 
     /**
      * Register a connection listener with the server.
      *
      * @param listener The connection listener to register
      */
-    public void registerListener(ConnectionListener listener);
+    public void registerListener(ServerConnectionListener listener);
 
     /**
      * Unregister a connection listener with the server.
      *
      * @param listener The connection listener to unregister
      */
-    public void unregisterListener(ConnectionListener listener);
+    public void unregisterListener(ServerConnectionListener listener);
 }

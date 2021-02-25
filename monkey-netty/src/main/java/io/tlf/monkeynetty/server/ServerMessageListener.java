@@ -22,24 +22,30 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-package io.tlf.monkeynetty;
+package io.tlf.monkeynetty.server;
+
+import io.tlf.monkeynetty.msg.NetworkMessage;
 
 /**
  * @author Trevor Flynn trevorflynn@liquidcrystalstudios.com
  */
-public interface ConnectionListener {
+public interface ServerMessageListener {
 
     /**
-     * Called when a client is connected
+     * When the server/client receives a message, this will be called.
+     * This is to be implemented by the user code.
      *
-     * @param client The client connected.
+     * @param msg    The message received
+     * @param server The server that sent the message, will be null on client side application
+     * @param connection The client that received the message
      */
-    public void onConnect(NetworkClient client);
+    public void onMessage(NetworkMessage msg, NetworkServer server, NetworkConnection connection);
 
     /**
-     * Called when a client disconnects
+     * The listener <code>onMessage</code> will only get called if the message received
+     * is within this returned list.
      *
-     * @param client The client that disconnected.
+     * @return A list of supported messages by this listener
      */
-    public void onDisconnect(NetworkClient client);
+    public Class<? extends NetworkMessage>[] getSupportedMessages();
 }

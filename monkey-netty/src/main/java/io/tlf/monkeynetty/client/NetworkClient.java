@@ -21,7 +21,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-package io.tlf.monkeynetty;
+package io.tlf.monkeynetty.client;
 
 import io.tlf.monkeynetty.msg.NetworkMessage;
 
@@ -36,6 +36,11 @@ public interface NetworkClient {
      * @return if the client is connected to the server
      */
     public boolean isConnected();
+
+    /**
+     * @return The settings of the client
+     */
+    public NetworkClientSettings getSettings();
 
     /**
      * Send a message from the client to the server
@@ -58,61 +63,33 @@ public interface NetworkClient {
     public void disconnect();
 
     /**
-     * @return If the client is connected to the server using SSL
-     */
-    public boolean isSsl();
-
-    /**
-     * @return The address of the server the client is connecting to
-     */
-    public String getAddress();
-
-    /**
-     * @return The port of the server the client is connecting to
-     */
-    public int getPort();
-
-    /**
-     * The service string should be unique to each server.
-     * This is entirely for user use, and is not validated between server and client.
-     *
-     * @return The service the client is connecting to.
-     */
-    public String getService();
-
-    /**
-     * @return Which network protocols the client supports
-     */
-    public NetworkProtocol[] getProtocol();
-
-    /**
      * Register a message listener with the client.
      *
      * @param handler The message listener to register
      */
-    public void registerListener(MessageListener handler);
+    public void registerListener(ClientMessageListener handler);
 
     /**
      * Unregister a message listener with the client.
      *
      * @param handler The message listener to unregister
      */
-    public void unregisterListener(MessageListener handler);
+    public void unregisterListener(ClientMessageListener handler);
 
     /**
      * Register a connection listener with the client.
      *
      * @param listener The connection listener to register
      */
-    public void registerListener(ConnectionListener listener);
+    public void registerListener(ClientConnectionListener listener);
 
     /**
      * Unregister a connection listener with the client.
      *
      * @param listener The connection listener to unregister
      */
-    public void unregisterListener(ConnectionListener listener);
-    
+    public void unregisterListener(ClientConnectionListener listener);
+
     /**
      * Set obj value attribute for key param
      *

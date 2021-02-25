@@ -27,12 +27,8 @@ package io.tlf.monkeynetty.server;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.socket.SocketChannel;
-import io.tlf.monkeynetty.ConnectionListener;
-import io.tlf.monkeynetty.NetworkClient;
-import io.tlf.monkeynetty.NetworkServer;
-import io.tlf.monkeynetty.MessageListener;
+import io.tlf.monkeynetty.*;
 import io.tlf.monkeynetty.msg.NetworkMessage;
-import io.tlf.monkeynetty.NetworkProtocol;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.Collections;
@@ -42,23 +38,22 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
-
 /**
  * @author Trevor Flynn trevorflynn@liquidcrystalstudios.com
  */
-public class NettyConnection implements NetworkClient {
+public class NettyConnection implements NetworkConnection {
 
     private final static Logger LOGGER = Logger.getLogger(NettyConnection.class.getName());
+    private final HashSet<ServerMessageListener> handlers = new HashSet<>();
+    private final Object handlerLock = new Object();
+    private final Set<ServerConnectionListener> listeners = Collections.synchronizedSet(new HashSet<>());
+    private final HashMap<String, Object> atts = new HashMap<>();
+    private final NetworkServer server;
+
     private SocketChannel tcpConn;
     private UdpChannel udpConn;
-    private final NetworkServer server;
-    private boolean connected = false;
-    private final HashSet<MessageListener> handlers = new HashSet<>();
-    private final Object handlerLock = new Object();
-    private final Set<ConnectionListener> listeners = Collections.synchronizedSet(new HashSet<>());
 
-    private final HashMap<String, Object> atts = new HashMap<>();
+    private boolean connected = false;
 
     public NettyConnection(NetworkServer server) {
         this.server = server;
@@ -78,7 +73,7 @@ public class NettyConnection implements NetworkClient {
      * of running all connection listeners.
      */
     protected void connect() {
-        for (ConnectionListener listener : listeners) {
+        for (ServerConnectionListener listener : listeners) {
             listener.onConnect(this);
         }
         connected = true;
@@ -97,7 +92,7 @@ public class NettyConnection implements NetworkClient {
 
     @Override
     public void disconnect() {
-        for (ConnectionListener listener : listeners) {
+        for (ServerConnectionListener listener : listeners) {
             listener.onDisconnect(this);
         }
         //Close connection
@@ -106,8 +101,13 @@ public class NettyConnection implements NetworkClient {
     }
 
     @Override
-    public int getPort() {
-        return server.getPort();
+    public int getTcpPort() {
+        return server.getSettings().getTcpPort();
+    }
+
+    @Override
+    public int getUdpPort() {
+        return server.getSettings().getUdpPort();
     }
 
     public NetworkServer getServer() {
@@ -116,16 +116,21 @@ public class NettyConnection implements NetworkClient {
 
     @Override
     public String getService() {
-        return server.getService();
+        return server.getSettings().getService();
     }
 
     public boolean isSsl() {
-        return server.isSsl();
+        return server.getSettings().isSsl();
+    }
+
+    @Override
+    public String getAddress() {
+        return getUserData("address");
     }
 
     @Override
     public NetworkProtocol[] getProtocol() {
-        return server.getProtocol();
+        return server.getSettings().getProtocols();
     }
 
     @Override
@@ -156,7 +161,7 @@ public class NettyConnection implements NetworkClient {
     public void receive(NetworkMessage message) {
         //Handlers
         synchronized (handlerLock) {
-            for (MessageListener handler : handlers) {
+            for (ServerMessageListener handler : handlers) {
                 for (Class a : handler.getSupportedMessages()) {
                     if (a.isInstance(message)) {
                         handler.onMessage(message, null, this);
@@ -167,11 +172,6 @@ public class NettyConnection implements NetworkClient {
     }
 
     @Override
-    public String getAddress() {
-        return getUserData("address").toString();
-    }
-    
-    @Override
     public void setUserData(String key, Object obj) {
         atts.put(key, obj);
     }
@@ -180,28 +180,28 @@ public class NettyConnection implements NetworkClient {
     public <T> T getUserData(String key) {
         return (T) atts.get(key);
     }
-    
+
     @Override
-    public void registerListener(MessageListener handler) {
+    public void registerListener(ServerMessageListener handler) {
         synchronized (handlerLock) {
             handlers.add(handler);
         }
     }
 
     @Override
-    public void unregisterListener(MessageListener handler) {
+    public void unregisterListener(ServerMessageListener handler) {
         synchronized (handlerLock) {
             handlers.remove(handler);
         }
     }
 
     @Override
-    public void registerListener(ConnectionListener listener) {
+    public void registerListener(ServerConnectionListener listener) {
         listeners.add(listener);
     }
 
     @Override
-    public void unregisterListener(ConnectionListener listener) {
+    public void unregisterListener(ServerConnectionListener listener) {
         listeners.remove(listener);
     }
 }

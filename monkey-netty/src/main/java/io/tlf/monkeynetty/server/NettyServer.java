@@ -41,12 +41,12 @@ import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
 import io.tlf.monkeynetty.*;
+import io.tlf.monkeynetty.client.NetworkClient;
 import io.tlf.monkeynetty.msg.ConnectionEstablishedMessage;
 import io.tlf.monkeynetty.msg.NetworkMessage;
 import io.tlf.monkeynetty.msg.PingMessage;
 import io.tlf.monkeynetty.msg.UdpConHashMessage;
 
-import java.io.File;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -56,15 +56,14 @@ import java.util.logging.Logger;
 public class NettyServer extends BaseAppState implements NetworkServer {
 
     private final static Logger LOGGER = Logger.getLogger(NettyServer.class.getName());
-    private final Set<MessageListener> messageListeners = ConcurrentHashMap.newKeySet();
-    private final Set<ConnectionListener> connectionListeners = ConcurrentHashMap.newKeySet();
+    private final Set<ServerMessageListener> messageListeners = ConcurrentHashMap.newKeySet();
+    private final Set<ServerConnectionListener> connectionListeners = ConcurrentHashMap.newKeySet();
     private final Map<Channel, NettyConnection> tcpClients = new ConcurrentHashMap<>();
     private final Map<Channel, NettyConnection> udpClients = new ConcurrentHashMap<>();
     private final Map<String, NettyConnection> secrets = new ConcurrentHashMap<>();
-    private final Set<NetworkClient> pendingConnections = ConcurrentHashMap.newKeySet();
+    private final Set<NetworkConnection> pendingConnections = ConcurrentHashMap.newKeySet();
 
-    private int maxConnections = 10;
-    private boolean blocking = false;
+    protected final NetworkServerSettings settings;
     private LogLevel logLevel;
 
     //Netty objects
@@ -77,72 +76,17 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     private ServerBootstrap udpServer;
     private ChannelFuture udpFuture;
     private SslContext sslContext;
+    private LoggingHandler tcpLogger;
+    private LoggingHandler udpLogger;
 
-    private final String service;
-    private final int port;
-    private boolean ssl;
-    private boolean selfGenCert;
-    private File cert;
-    private File key;
 
     /**
      * Create a new UDP/TCP server.
-     * The server will be created without SSL
      *
-     * @param service The name of the service the server is running
-     * @param port The port the TCP/UDP server will listen on
+     * @param settings The server settings to use when creating the server
      */
-    public NettyServer(String service, int port) {
-        this(service, false, port);
-    }
-
-    /**
-     * Create a new UDP/TCP server.
-     * If ssl is enabled, the TCP server will generate a self signed certificate and use ssl.
-     *
-     * @param service The name of the service the server is running
-     * @param ssl If ssl should be used on the TCP server
-     * @param port The port the TCP/UDP server will listen on
-     */
-    public NettyServer(String service, boolean ssl, int port) {
-        this(service, ssl, true, null, null, port);
-    }
-
-    /**
-     * Create a new UDP/TCP server.
-     * If ssl is enabled, and a certificate key pair are provided, the TCP server will use ssl.
-     * If the server failes to load the cert key pair, or they are null, it will fail back to non-ssl.
-     *
-     * @param service The name of the service the server is running
-     * @param ssl If ssl should be used on the TCP server
-     * @param cert The certificate file, or null
-     * @param key The certificate key, or null
-     * @param port The port the TCP/UDP server will listen on
-     */
-    public NettyServer(String service, boolean ssl, File cert, File key, int port) {
-        this(service, ssl, false, cert, key, port);
-    }
-
-    /**
-     * Create a new UDP/TCP server.
-     * If ssl is enabled, and a certificate key pair are provided, the TCP server will use ssl.
-     * If the server failes to load the cert key pair, or they are null, it will fail back to
-     * a self signed certificate if enabled, otherwise will fail back to non-ssl.
-     *
-     * @param service The name of the service the server is running
-     * @param ssl If ssl should be used on the TCP server
-     * @param selfGenCert If a self signed certificate can be used.
-     * @param cert The certificate file, or null to use self signed cert
-     * @param key The certificate key, or null to use self signed cert
-     * @param port The port the TCP/UDP server will listen on
-     */
-    private NettyServer(String service, boolean ssl, boolean selfGenCert, File cert, File key, int port) {
-        this.service = service;
-        this.port = port;
-        this.ssl = ssl;
-        this.cert = cert;
-        this.key = key;
-        this.selfGenCert = selfGenCert;
+    public NettyServer(NetworkServerSettings settings) {
+        this.settings = settings;
     }
 
     @Override
@@ -157,15 +101,17 @@ public class NettyServer extends BaseAppState implements NetworkServer {
 
     @Override
     public void onEnable() {
-        LOGGER.log(Level.INFO, "Loading Netty.IO Server {0} on port {1,number,#}", new Object[]{getService(), getPort()});
+        LOGGER.log(Level.INFO, "Loading Netty.IO Server {0} on tcp port {1,number,#} and udp port {2,number,#}",
+                new Object[]{settings.getService(), settings.getTcpPort(), settings.getUdpPort()});
         setupTcp();
         setupUdp();
-        LOGGER.log(Level.INFO, "Server {0} running on port {1,number,#}", new Object[]{getService(), getPort()});
+        LOGGER.log(Level.INFO, "Server {0} running on tcp port {1,number,#} and udp port {2,number,#}",
+                new Object[]{settings.getService(), settings.getTcpPort(), settings.getUdpPort()});
     }
 
     @Override
     public void onDisable() {
-        LOGGER.log(Level.INFO, "Unloading Netty.IO Server {0} on port {1,number,#}", new Object[]{getService(), getPort()});
+        LOGGER.log(Level.INFO, "Unloading Netty.IO Server {0} on tcp port {1,number,#} and udp port {2,number,#}", new Object[]{settings.getService(), settings.getTcpPort(), settings.getUdpPort()});
 
         try {
             tcpConGroup.shutdownGracefully();
@@ -178,7 +124,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
             LOGGER.log(Level.SEVERE, "Failed to stop server", ex);
         }
 
-        LOGGER.log(Level.INFO, "Server {0} stopped on port {1,number,#}", new Object[]{getService(), getPort()});
+        LOGGER.log(Level.INFO, "Server {0} stopped on tcp port {1,number,#} and udp port {2,number,#}", new Object[]{settings.getService(), settings.getTcpPort(), settings.getUdpPort()});
     }
 
     @Override
@@ -187,23 +133,8 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     }
 
     @Override
-    public boolean isBlocking() {
-        return blocking;
-    }
-
-    @Override
-    public void setBlocking(boolean blocking) {
-        this.blocking = blocking;
-    }
-
-    @Override
-    public int getMaxConnections() {
-        return maxConnections;
-    }
-
-    @Override
-    public void setMaxConnections(int maxConnections) {
-        this.maxConnections = maxConnections;
+    public NetworkServerSettings getSettings() {
+        return settings;
     }
 
     /**
@@ -211,10 +142,11 @@ public class NettyServer extends BaseAppState implements NetworkServer {
      * Process an incoming client connection.
      * Will handle max connections and blocking mode.
      * Will fire connection listeners.
+     *
      * @param client The client making the connection
      */
-    private void receive(NetworkClient client) {
-        if (isBlocking() || getConnections() >= getMaxConnections() || !(client instanceof NettyConnection)) {
+    private void receive(NetworkConnection client) {
+        if (settings.isBlocking() || getConnections() >= settings.getMaxConnections() || !(client instanceof NettyConnection)) {
             client.disconnect();
             LOGGER.log(Level.INFO, "Server rejected connection from {0}", client.getAddress());
         } else {
@@ -223,7 +155,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                 ((NettyConnection) client).connect();
                 LOGGER.log(Level.INFO, "Connection received from {0}", client.getAddress());
                 try {
-                    for (ConnectionListener listener : connectionListeners) {
+                    for (ServerConnectionListener listener : connectionListeners) {
                         listener.onConnect(client);
                     }
                     client.send(new ConnectionEstablishedMessage());
@@ -247,12 +179,12 @@ public class NettyServer extends BaseAppState implements NetworkServer {
      * Process an incoming message from a client.
      * Will notify message listeners.
      *
-     * @param client The client the message was from
+     * @param client  The client the message was from
      * @param message The message sent
      */
-    private void receive(NetworkClient client, NetworkMessage message) {
+    private void receive(NetworkConnection client, NetworkMessage message) {
         client.receive(message);
-        for (MessageListener handler : messageListeners) {
+        for (ServerMessageListener handler : messageListeners) {
             for (Class<? extends NetworkMessage> a : handler.getSupportedMessages()) {
                 if (a.isInstance(message)) {
                     try {
@@ -276,29 +208,10 @@ public class NettyServer extends BaseAppState implements NetworkServer {
         client.send(message);
     }
 
-    @Override
-    public int getPort() {
-        return port;
-    }
-
-    @Override
-    public String getService() {
-        return service;
-    }
-
-    @Override
-    public boolean isSsl() {
-        return ssl;
-    }
-
-    @Override
-    public NetworkProtocol[] getProtocol() {
-        return new NetworkProtocol[]{NetworkProtocol.UDP, NetworkProtocol.TCP};
-    }
-
     /**
      * Sets the Netty.IO internal log level.
      * This will not change the <code>java.util.logger</code> Logger for Monkey-Netty.
+     * Changing the log level will not take affect if the server is running.
      * @param logLevel The internal Netty.IO log level
      */
     public void setLogLevel(LogLevel logLevel) {
@@ -323,18 +236,18 @@ public class NettyServer extends BaseAppState implements NetworkServer {
      */
     private void setupTcp() {
         //Setup ssl
-        if (ssl) {
+        if (settings.isSsl()) {
             try {
-                if (selfGenCert) {
+                if (settings.isSslSelfSigned()) {
                     LOGGER.log(Level.WARNING, "No SSL cert or key provided, using self signed certificate");
                     SelfSignedCertificate ssc = new SelfSignedCertificate();
-                    cert = ssc.certificate();
-                    key = ssc.privateKey();
+                    settings.setSslCertFile(ssc.certificate());
+                    settings.setSslKeyFile(ssc.privateKey());
                 }
-                sslContext = SslContextBuilder.forServer(cert, key).build();
+                sslContext = SslContextBuilder.forServer(settings.getSslCertFile(), settings.getSslKeyFile()).build();
             } catch (Exception ex) {
                 LOGGER.log(Level.WARNING, "Failed to load ssl, failing back to no ssl", ex);
-                ssl = false;
+                settings.setSsl(false);
             }
         }
         //Setup tcp socket
@@ -375,7 +288,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                 tcpClients.remove(future.channel());
 
                                 try {
-                                    for (ConnectionListener listener : connectionListeners) {
+                                    for (ServerConnectionListener listener : connectionListeners) {
                                         listener.onDisconnect(client);
                                     }
                                 } catch (Exception ex) {
@@ -384,13 +297,14 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                             });
 
                             //Setup ssl
-                            if (ssl) {
+                            if (settings.isSsl()) {
                                 p.addLast(sslContext.newHandler(ch.alloc()));
                             }
 
                             //Setup pipeline
                             if (logLevel != null) {
-                                p.addLast(new LoggingHandler(logLevel));
+                                tcpLogger = new LoggingHandler(logLevel);
+                                p.addLast(tcpLogger);
                             }
                             p.addLast(
                                     new NetworkMessageEncoder(),
@@ -442,7 +356,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                             receive(client);
                         }
                     });
-            tcpFuture = tcpServer.bind(port).sync();
+            tcpFuture = tcpServer.bind(settings.getTcpPort()).sync();
         } catch (Exception ex) {
             LOGGER.log(Level.SEVERE, "Outside TCP server crash", ex);
         }
@@ -475,7 +389,8 @@ public class NettyServer extends BaseAppState implements NetworkServer {
 
                             //Setup pipeline
                             if (logLevel != null) {
-                                p.addLast(new LoggingHandler(logLevel));
+                                udpLogger = new LoggingHandler(logLevel);
+                                p.addLast(udpLogger);
                             }
                             p.addLast(
                                     new NetworkMessageEncoder(),
@@ -524,7 +439,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                                     });
                         }
                     });
-            udpFuture = udpServer.bind(port).sync();
+            udpFuture = udpServer.bind(settings.getUdpPort()).sync();
         } catch (Exception ex) {
             LOGGER.log(Level.SEVERE, "Outside UDP server crash", ex);
         }
@@ -533,6 +448,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     /**
      * Internal use only
      * Catch a network error. This will cause the error to be sent to the logger.
+     *
      * @param cause The error to catch
      */
     private void catchNetworkError(Throwable cause) {
@@ -543,22 +459,22 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     }
 
     @Override
-    public void registerListener(MessageListener handler) {
+    public void registerListener(ServerMessageListener handler) {
         messageListeners.add(handler);
     }
 
     @Override
-    public void unregisterListener(MessageListener handler) {
+    public void unregisterListener(ServerMessageListener handler) {
         messageListeners.remove(handler);
     }
 
     @Override
-    public void registerListener(ConnectionListener listener) {
+    public void registerListener(ServerConnectionListener listener) {
         connectionListeners.add(listener);
     }
 
     @Override
-    public void unregisterListener(ConnectionListener listener) {
+    public void unregisterListener(ServerConnectionListener listener) {
         connectionListeners.remove(listener);
     }
 

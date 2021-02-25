@@ -22,24 +22,23 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-package io.tlf.monkeynetty;
+package io.tlf.monkeynetty.client;
 
 import io.tlf.monkeynetty.msg.NetworkMessage;
 
 /**
  * @author Trevor Flynn trevorflynn@liquidcrystalstudios.com
  */
-public interface MessageListener {
+public interface ClientMessageListener {
 
     /**
      * When the server/client receives a message, this will be called.
      * This is to be implemented by the user code.
      *
      * @param msg    The message received
-     * @param server The server that sent the message, will be null on client side application
      * @param client The client that received the message
      */
-    public void onMessage(NetworkMessage msg, NetworkServer server, NetworkClient client);
+    public void onMessage(NetworkMessage msg, NetworkClient client);
 
     /**
      * The listener <code>onMessage</code> will only get called if the message received

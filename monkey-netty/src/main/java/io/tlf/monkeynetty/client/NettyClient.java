@@ -261,7 +261,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                 //Setup pipeline
                 p.addLast(
                         new NetworkMessageEncoder(),
-                        new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.softCachingResolver(null)),
+                        new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
                         new ChannelInboundHandlerAdapter() {
                             @Override
                             public void channelRead(ChannelHandlerContext ctx, Object msg) {
@@ -321,7 +321,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
     }
 
     /**
-     * Internal use onle
+     * Internal use only
      * Setup the UDP netty.io pipeline.
      * This will create a dedicated UDP channel to the server.
      * The pipeline is setup to handle <code>NetworkMessage</code> message types.
@@ -332,8 +332,9 @@ public class NettyClient extends BaseAppState implements NetworkClient {
         LOGGER.fine("Setting up udp");
         udpGroup = new NioEventLoopGroup();
         udpClientBootstrap = new Bootstrap();
-        udpClientBootstrap.group(tcpGroup);
+        udpClientBootstrap.group(udpGroup);
         udpClientBootstrap.channel(NioDatagramChannel.class);
+        udpClientBootstrap.option(ChannelOption.RCVBUF_ALLOCATOR, new FixedRecvByteBufAllocator(65535));
         udpClientBootstrap.remoteAddress(new InetSocketAddress(server, port));
         udpClientBootstrap.handler(new ChannelInitializer<DatagramChannel>() {
             protected void initChannel(DatagramChannel socketChannel) {
@@ -348,7 +349,7 @@ public class NettyClient extends BaseAppState implements NetworkClient {
                 }
                 p.addLast(
                         new NetworkMessageEncoder(),
-                        new DatagramPacketObjectDecoder(ClassResolvers.cacheDisabled(null)),
+                        new DatagramPacketObjectDecoder(ClassResolvers.cacheDisabled(null), 65507),
                         new ChannelInboundHandlerAdapter() {
                             @Override
                             public void channelRead(ChannelHandlerContext ctx, Object netObj) {

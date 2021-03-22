@@ -394,7 +394,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                             }
                             p.addLast(
                                     new NetworkMessageEncoder(),
-                                    new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.softCachingResolver(null)),
+                                    new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
                                     new ChannelInboundHandlerAdapter() {
                                         @Override
                                         public void channelRead(ChannelHandlerContext ctx, Object msg) {
@@ -449,7 +449,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
     }
 
     /**
-     * Internal use onle
+     * Internal use only
      * Setup the UDP netty.io server pipeline.
      * This will create a dedicated UDP channel for each client.
      * The pipeline is setup to handle <code>NetworkMessage</code> message types.
@@ -461,6 +461,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
             udpServer = new ServerBootstrap();
             udpServer.group(udpConGroup, udpMsgGroup)
                     .channel(UdpServerChannel.class)
+                    .option(ChannelOption.RCVBUF_ALLOCATOR, new FixedRecvByteBufAllocator(65535))
                     .childHandler(new ChannelInitializer<UdpChannel>() {
                         @Override
                         public void initChannel(UdpChannel ch) {
@@ -479,7 +480,7 @@ public class NettyServer extends BaseAppState implements NetworkServer {
                             }
                             p.addLast(
                                     new NetworkMessageEncoder(),
-                                    new NetworkMessageDecoder(Integer.MAX_VALUE, ClassResolvers.cacheDisabled(null)),
+                                    new NetworkMessageDecoder(65507, ClassResolvers.cacheDisabled(null)),
                                     new ChannelInboundHandlerAdapter() {
                                         @Override
                                         public void channelRead(ChannelHandlerContext ctx, Object msg) {

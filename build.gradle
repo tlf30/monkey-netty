@@ -4,9 +4,9 @@ allprojects {
 
     ext {
         //Dependency Versions
-        jmeVersion = "3.3.0-stable"
+        jmeVersion = "3.4.1-stable"
         jmeGroup = "org.jmonkeyengine"
-        nettyioVersion = "4.1.58.Final"
+        nettyioVersion = "4.1.70.Final"
     }
 
     repositories {

@@ -3,6 +3,8 @@ plugins {
     id 'maven-publish'
 }
 
+apply from: './publishing/publishing.gradle'
+
 java {
     withJavadocJar()
     withSourcesJar()

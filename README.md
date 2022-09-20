@@ -14,7 +14,7 @@ In your `build.gradle` you will need to:
 ```groovy
 dependencies {
     ...
-    implementation 'io.tlf.monkeynetty:monkey-netty:0.1.0'
+    implementation 'io.tlf.monkeynetty:monkey-netty:0.1.2-SNAPSHOT'
 }
 ```
 
@@ -28,7 +28,7 @@ In your pom.xml you will need to:
     <dependency>
         <groupId>io.tlf.monkeynetty</groupId>
         <artifactId>monkey-netty</artifactId>
-        <version>0.1.0</version>
+        <version>0.1.2-SNAPSHOT</version>
     </dependency>
 </dependencies>
 ```

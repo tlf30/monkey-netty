@@ -1,3 +1,8 @@
+#### v0.1.2
+ * Artifacts now published to Maven Central (#35)
+ * Update Netty.IO to v4.1.82.Final
+ * Update jMonkeyEngine to v3.5.2
+
 #### v0.1.1
  * Fixed concurrency issues with Collections (#31)
  * Updated Netty.IO to version 4.1.58 (#29)

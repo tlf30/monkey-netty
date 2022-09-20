@@ -1,18 +1,21 @@
+plugins {
+    id 'io.github.gradle-nexus.publish-plugin' version '1.1.0'
+}
+
 allprojects {
     version = '0.1.2-SNAPSHOT'
     group = "io.tlf.monkeynetty"
 
     ext {
         //Dependency Versions
-        jmeVersion = "3.4.1-stable"
+        jmeVersion = "3.5.2-stable"
         jmeGroup = "org.jmonkeyengine"
-        nettyioVersion = "4.1.70.Final"
+        nettyioVersion = "4.1.82.Final"
     }
 
     repositories {
-        mavenLocal()
         mavenCentral()
-        jcenter()
     }
 }
 
+apply from: 'publishing/publishing.gradle'
